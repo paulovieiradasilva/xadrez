@@ -1,0 +1,10 @@
+# Ignorar pasta de configuração do VSCode
+.vscode/
+
+# Ignorar arquivo de logs
+logs.txt
+
+# Ignorar arquivos temporários ou sistema (opcional)
+*.tmp
+*.swp
+.DS_Store
