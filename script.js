@@ -1,28 +1,57 @@
 
+/**
+ * Representa o tabuleiro virtual do jogo.
+ * 
+ * Estrutura: matriz 8x8 onde cada célula pode conter:
+ * - null (casa vazia)
+ * - objeto peça { name, type, positions, color, symbol, pathImg }
+ * 
+ * É atualizado a cada movimento para refletir o estado atual da partida.
+ */
 let VIRTUAL_BOARD = initializeVirtualBoard();
+
+/**
+ * Representa a matriz de ataque.
+ * 
+ * Estrutura: matriz 8x8 de Sets, onde cada célula indica
+ * quais cores atacam aquela posição (ex: {"white"}, {"black"}, ou {"white","black"}).
+ * 
+ * É recalculada chamando `updateAttackBoard()` após cada jogada.
+ */
 let ATTACK_BOARD = initializeAttackBoard();
 
+/**
+ * Estado global do jogo de xadrez.
+ * 
+ * @property {("white"|"black")} currentPlayer - Jogador atual.
+ * @property {Object|null} selectedPiece - Peça selecionada no momento.
+ * @property {boolean} check - Indica se o rei do jogador atual está em xeque.
+ * @property {boolean} checkmate - Indica se o jogador atual está em xeque-mate.
+ * @property {Object} kingPositions - Posições atuais dos reis.
+ * @property {number[]} kingPositions.white - Posição do rei branco [linha, coluna].
+ * @property {number[]} kingPositions.black - Posição do rei preto [linha, coluna].
+ * @property {Object|null} lastPawnDoubleMove - Último avanço duplo de peão (para en passant).
+ * @property {number[]} enPassantPosition - Casas válidas para captura en passant.
+ * @property {Object|null} promotionPending - Promoção pendente de peão (ou null).
+ */
 let GAME_STATE = {
     currentPlayer: "white",
     selectedPiece: null,
     check: false,
     checkmate: false,
     kingPositions: {
-        white: [],
-        black: []
-    },
-    kingMoved: {
-        white: false,
-        black: false
-    },
-    rookMoved: {
-        white: { 0: false, 7: false },
-        black: { 0: false, 7: false }
+        white: [7, 4],
+        black: [0, 4]
     },
     lastPawnDoubleMove: null,
     enPassantPosition: [],
     promotionPending: null,
 };
+
+/**
+ * Posições iniciais das peças no tabuleiro.
+ * Cada entrada contém as coordenadas [linha, coluna].
+ */
 const INITIAL_POSITIONS = {
     white: [
         [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [6, 6], [6, 7]], // Peões
@@ -41,6 +70,14 @@ const INITIAL_POSITIONS = {
         [[0, 4]]  // Rei
     ]
 };
+
+/**
+ * Definições dos tipos de peças:
+ * - name: Nome da peça
+ * - type: Identificador interno
+ * - symbol: Unicode do xadrez
+ * - img: Arquivo de imagem
+ */
 const PIECE_TYPES = {
     PAWN: { name: "Pawn", type: "pawn", symbol: "♟", img: "p.png" },
     ROOK: { name: "Rook", type: "rook", symbol: "♜", img: "r.png" },
@@ -49,24 +86,63 @@ const PIECE_TYPES = {
     QUEEN: { name: "Queen", type: "queen", symbol: "♕", img: "q.png" },
     KING: { name: "King", type: "king", symbol: "♚", img: "k.png" }
 };
+
+/**
+ * Instâncias das peças no tabuleiro inicial,
+ * geradas a partir de INITIAL_POSITIONS.
+ */
 const PIECES = {
     white: createPieces("white", INITIAL_POSITIONS.white),
     black: createPieces("black", INITIAL_POSITIONS.black)
 };
 
+/**
+ * Define se as casas devem ser destacadas ou não.
+ */
+let SHOW_HIGHLIGHT = true;
+
+// ----------------- INICIALIZAÇÃO
+/**
+ * Inicia o jogo:
+ * - Cria o tabuleiro
+ * - Posiciona as peças iniciais
+ */
 function startGame() {
     createBoard();
     addPieces();
-}
+};
 
+/**
+ * Cria o tabuleiro lógico (8x8) vazio.
+ * Cada célula começa como null.
+ * 
+ * @return {Array<Array<null>>} Matriz 8x8 representando o tabuleiro virtual.
+ */
 function initializeVirtualBoard() {
     return Array(8).fill(null).map(() => Array(8).fill(null));
-}
+};
 
+/**
+ * Cria a matriz de ataques (8x8).
+ * Cada célula contém um Set() com cores que atacam aquela casa.
+ * 
+ * @return {Array<Array<Set>>} Matriz 8x8 com conjuntos de atacantes por célula.
+ */
 function initializeAttackBoard() {
-    return Array(8).fill(null).map(() => Array(8).fill(false));
-}
+    return Array(8).fill(null).map(() => Array(8).fill(null).map(() => new Set()));
 
+};
+
+// ----------------- CRIAÇÃO DO TABULEIRO
+/**
+ * Cria o tabuleiro de xadrez no DOM (8x8).
+ * - Cada célula é um <div> com classes de estilo e posição.
+ * - Adiciona identificadores como [row,col] e notação de xadrez (a1..h8).
+ * - Inclui rótulos de letras (a–h) e números (1–8) nas bordas.
+ * - Conecta cada célula ao evento `cellClicked`.
+ * 
+ * @return {void}
+ */
 function createBoard() {
     const board = document.getElementById("board");
     const letters = "abcdefgh".split("");
@@ -85,7 +161,7 @@ function createBoard() {
                 "text-white",
                 "cell"
             );
-            cell.classList.add(getCellColor(row, col));
+            cell.classList.add(getBoardCellColor(row, col));
             cell.dataset.position = [row, col];
             cell.dataset.id = `${letters[col]}${8 - row}`;
 
@@ -124,11 +200,47 @@ function createBoard() {
             board.appendChild(cell);
         }
     }
-}
+};
 
+// ----------------- PEÇAS
+/**
+ * Cria as peças para uma cor, a partir de um array de posições.
+ * @param {string} color - "white" ou "black"
+ * @param {Array} positions - Array de arrays de posições por tipo de peça
+ * @returns {Array} - Array de objetos de peças
+ */
+function createPieces(color, positions) {
+    const pieceKeys = Object.keys(PIECE_TYPES);
+
+    return Object.entries(positions).flatMap(([index, posArray], i) =>
+        posArray.map(position => ({
+            name: PIECE_TYPES[pieceKeys[i]].name,
+            type: PIECE_TYPES[pieceKeys[i]].type,
+            positions: [position], // Cada peça tem uma posição inicial
+            symbol: PIECE_TYPES[pieceKeys[i]].symbol,
+            color,
+            pathImg: `./img/pieces/${color}/${PIECE_TYPES[pieceKeys[i]].img}`
+        }))
+    );
+};
+
+/**
+ * Cria objetos de peças de xadrez para um jogador.
+ * - Associa cada posição inicial ao tipo correto de peça.
+ * - Usa `PIECE_TYPES` como referência para nome, tipo, símbolo e imagem.
+ * - Cada peça recebe:
+ *   - name: Nome da peça (ex: "Pawn")
+ *   - type: Tipo interno (ex: "pawn")
+ *   - positions: Array com a posição inicial [[row, col]]
+ *   - symbol: Símbolo unicode (ex: ♟)
+ *   - color: "white" ou "black"
+ *   - pathImg: Caminho da imagem correspondente
+ *
+ * @param {string} color - Cor das peças ("white" ou "black").
+ * @param {Array} positions - Estrutura de posições iniciais dessa cor.
+ * @return {Array<Object>} Lista de objetos representando as peças.
+ */
 function addPieces() {
-    const letters = "abcdefgh".split("");
-
     Object.entries(PIECES).forEach(([color, pieces]) => {
         pieces.forEach(piece => {
             const { name, pathImg, type, color, symbol } = piece;
@@ -148,15 +260,27 @@ function addPieces() {
                     img.src = pathImg;
                     img.alt = name;
 
-                    updateVirtualBoard(position, position, piece);
+                    updateVirutualBoardPosition(position, position, piece);
 
                     cell.appendChild(img);
                 }
             });
         });
     });
-}
+};
 
+// ----------------- CLICKS E MOVIMENTOS
+/**
+ * Trata o clique em uma célula do tabuleiro.
+ * - Se não houver peça selecionada e a célula estiver vazia, apenas loga uma mensagem.
+ * - Se houver uma peça do jogador atual, seleciona a peça e destaca os possíveis movimentos.
+ * - Se houver uma peça selecionada e a célula clicada for válida:
+ *   - Detecta se é roque e executa `executeCastle`.
+ *   - Caso contrário, executa movimento normal via `movePiece`.
+ *
+ * @param {Event} event - Evento de clique.
+ * @param {Array<number>} position - Posição da célula clicada [row, col].
+ */
 function cellClicked(event, position) {
     const clickedPiece = getPiecePositionOnVirtualBoard(position);
 
@@ -167,17 +291,38 @@ function cellClicked(event, position) {
 
     if (clickedPiece && clickedPiece.color === GAME_STATE.currentPlayer) {
         GAME_STATE.selectedPiece = clickedPiece;
-        highligtPossibleMoves(clickedPiece, position, VIRTUAL_BOARD);
-        highlightCell(position);
+        highlightMovesForPiece(clickedPiece, position, VIRTUAL_BOARD);
+        highlightSelectedCell(position);
         return;
     }
 
     if (GAME_STATE.selectedPiece) {
-        movePiece(GAME_STATE.selectedPiece.positions[0], position);
-    }
-}
+        const fromPosition = GAME_STATE.selectedPiece.positions[0];
 
-function movePiece(fromPosition, toPosition) {
+        // Detecta se é roque
+        if (GAME_STATE.selectedPiece.type === "king" && Math.abs(position[1] - fromPosition[1]) === 2) {
+            executeCastle(fromPosition, position, GAME_STATE.selectedPiece.color);
+            return;
+        }
+
+        // Movimento normal
+        movePieceInVirtualBoard(fromPosition, position);
+    }
+};
+
+/**
+ * Move uma peça do tabuleiro virtual e atualiza o estado do jogo.
+ * - Valida se existe uma peça na posição de origem.
+ * - Verifica se o movimento é permitido pela regra do xadrez.
+ * - Confirma se o movimento não deixa o rei do jogador em xeque.
+ * - Executa o movimento e atualiza o DOM e o tabuleiro virtual.
+ * - Verifica se o movimento coloca o rei adversário em xeque.
+ *
+ * @param {Array<number>} fromPosition - Posição inicial da peça [row, col].
+ * @param {Array<number>} toPosition - Posição de destino da peça [row, col].
+ * @returns {boolean} - Retorna true se o movimento foi realizado com sucesso; false caso contrário.
+ */
+function movePieceInVirtualBoard(fromPosition, toPosition) {
     const piece = getPiecePositionOnVirtualBoard(fromPosition);
     if (!piece) return false;
 
@@ -185,7 +330,11 @@ function movePiece(fromPosition, toPosition) {
     if (!isValidMove) return false;
 
     if (!isMoveSafe(fromPosition, toPosition, GAME_STATE.currentPlayer)) {
-        console.log("❌ Movimento ilegal! Isso deixaria o rei em xeque.");
+        alert("❌ Movimento ilegal! Seu rei ficaria em xeque.");
+        
+        clearSelectedPiece();
+        clearMoveHighlights();
+
         return false;
     }
 
@@ -193,75 +342,159 @@ function movePiece(fromPosition, toPosition) {
 
     const opponentColor = piece.color === "white" ? "black" : "white";
     if (isKingInCheck(opponentColor)) {
+        alert(`🚨 Xeque no rei ${opponentColor}!`);
         console.log(`🚨 Xeque no rei ${opponentColor}!`);
     }
 
-    getVirtualBoard();
+    logVirtualBoard();
     return true;
-}
+};
 
+/**
+ * Executa o movimento de uma peça no tabuleiro.
+ * - Atualiza movimentos especiais como "en passant" e "último movimento de peão duplo".
+ * - Remove peças adversárias na posição de destino, se houver.
+ * - Atualiza o DOM para refletir o movimento da peça.
+ * - Atualiza o tabuleiro virtual (VIRTUAL_BOARD) com a nova posição da peça.
+ * - Atualiza as possíveis casas de movimento da peça.
+ * - Limpa a peça selecionada e alterna a vez do jogador.
+ *
+ * @param {Array<number>} fromPosition - Posição inicial da peça [row, col].
+ * @param {Array<number>} toPosition - Posição final da peça [row, col].
+ * @param {Object} piece - Objeto da peça que está sendo movida.
+ * @returns {void}
+ */
 function executeMove(fromPosition, toPosition, piece) {
     const fromCell = document.querySelector(`[data-position="${fromPosition.join(",")}"]`);
     const toCell = document.querySelector(`[data-position="${toPosition.join(",")}"]`);
 
     setLastPawnDoubleMove(fromPosition, toPosition, piece);
-    removeOpponentPiecesIfExists(toCell);
+    captureOpponentPiecesIfExists(toCell);
     removePawnEnPassant(toPosition);
-    movePieceInDOM(fromCell, toCell, toPosition, piece);
-    updateVirtualBoard(fromPosition, toPosition, piece);
-    highligtPossibleMoves(piece, toPosition, VIRTUAL_BOARD);
+    movePieceElement(fromCell, toCell, toPosition, piece);
+    updateVirutualBoardPosition(fromPosition, toPosition, piece);
+    highlightMovesForPiece(piece, toPosition, VIRTUAL_BOARD);
     clearSelectedPiece();
-    switchTurnPlayer();
-}
+    toggleCurrentPlayer();
+};
 
-function movePieceInDOM(fromCell, toCell, toPosition, piece) {
+/**
+ * Move a peça no DOM de uma célula para outra.
+ * - Remove a imagem da peça da célula de origem.
+ * - Adiciona a imagem da peça na célula de destino.
+ * - Remove quaisquer destaques de possíveis movimentos no tabuleiro.
+ *
+ * @param {HTMLElement} fromCell - Célula de origem da peça.
+ * @param {HTMLElement} toCell - Célula de destino da peça.
+ * @param {Array<number>} toPosition - Posição final da peça [row, col].
+ * @param {Object} piece - Objeto da peça que está sendo movida.
+ * @returns {void}
+ */
+function movePieceElement(fromCell, toCell, toPosition, piece) {
     const pieceImg = fromCell.querySelector('img');
     fromCell.removeChild(pieceImg);
     toCell.appendChild(pieceImg);
 
-    removeHighlightMoves([], VIRTUAL_BOARD);
-}
+    clearMoveHighlights([], VIRTUAL_BOARD);
+};
 
-function isMoveSafe(fromPosition, toPosition, player) {
-    const [fromRow, fromCol] = fromPosition;
-    const [toRow, toCol] = toPosition;
-
-    // 1️⃣ Salva o estado original
-    const originalPiece = VIRTUAL_BOARD[fromRow][fromCol];
-    const capturedPiece = VIRTUAL_BOARD[toRow][toCol]; // Pode ser null
-
-    // 2️⃣ Simula o movimento
-    VIRTUAL_BOARD[fromRow][fromCol] = null;
-    VIRTUAL_BOARD[toRow][toCol] = originalPiece;
-
-    // 3️⃣ Se for o rei, atualiza a posição temporária
-    if (originalPiece.type === "king") {
-        GAME_STATE.kingPositions[player] = [toRow, toCol];
-    }
-
-    // 4️⃣ Atualiza a matriz de ataque para a nova configuração do tabuleiro
-    // updateAttackMatrix();
-
-    // 5️⃣ Verifica se o próprio rei está em xeque
-    const kingIsInCheck = isKingInCheck(player);
-
-    // 6️⃣ Restaura o estado original
-    VIRTUAL_BOARD[fromRow][fromCol] = originalPiece;
-    VIRTUAL_BOARD[toRow][toCol] = capturedPiece;
-
-    if (originalPiece.type === "king") {
-        GAME_STATE.kingPositions[player] = [fromRow, fromCol];
-    }
-
-    // 7️⃣ Retorna `false` se o movimento colocar o rei em xeque
-    return !kingIsInCheck;
-}
-
-function removeOpponentPiecesIfExists(toCell) {
+/**
+ * Remove a peça adversária da célula de destino, se houver.
+ *
+ * @param {HTMLElement} toCell - Célula de destino que pode conter uma peça adversária.
+ * @returns {void}
+ */
+function captureOpponentPiecesIfExists(toCell) {
     const targetImg = toCell.querySelector('img');
     if (targetImg) targetImg.remove();
-}
+};
 
+/**
+ * Destaca visualmente no tabuleiro os movimentos possíveis de uma peça.
+ *
+ * @param {Object} piece - Objeto da peça a ser movida.
+ * @param {number[]} position - Posição atual da peça [linha, coluna].
+ * @param {Array} board - Tabuleiro virtual usado para cálculos de movimento.
+ * @returns {void}
+ */
+function highlightMovesForPiece(piece, position, board) {
+    if (!SHOW_HIGHLIGHT) return;
+
+    const newPossibleMoves = getPossibleMoves(position, piece);
+
+    clearMoveHighlights(newPossibleMoves, board);
+
+    newPossibleMoves.forEach((move) => {
+        const cell = document.querySelector(`[data-position="${move.join(",")}"]`);
+        if (cell) {
+            const circle = document.createElement("div");
+            circle.classList.add(
+                "moves-circle",
+                "absolute",
+                "w-3",
+                "h-3",
+                "bg-indigo-500",
+                "rounded-full",
+                "absolute",
+                "top-1/2",
+                "left-1/2",
+                "transform",
+                "-translate-x-1/2",
+                "-translate-y-1/2",
+                "opacity-80"
+            );
+            cell.appendChild(circle);
+        }
+    });
+};
+
+/**
+ * Remove todos os destaques visuais de movimentos possíveis no tabuleiro.
+ *
+ * @returns {void}
+ */
+function clearMoveHighlights() {
+    const circles = document.querySelectorAll(".moves-circle");
+    if (circles) {
+        circles.forEach((circle) => {
+            circle.remove();
+        });
+    }
+};
+
+/**
+ * Destaca a célula selecionada no tabuleiro, removendo o destaque das demais.
+ *
+ * @param {Array} position - Posição da célula [linha, coluna].
+ * @returns {void}
+ */
+function highlightSelectedCell(position) {
+    const [row, col] = position;
+    const cells = document.querySelectorAll(".cell");
+    cells.forEach((cell) => {
+        cell.classList.toggle(
+            "bg-[#F59E0B]",
+            cell.dataset.position === `${row},${col}`
+        );
+    });
+};
+
+/**
+ * Limpa a peça atualmente selecionada no estado do jogo.
+ *
+ * @returns {void}
+ */
+function clearSelectedPiece() {
+    GAME_STATE.selectedPiece = null;
+};
+
+/**
+ * Retorna todos os movimentos possíveis de uma peça a partir de uma posição.
+ *
+ * @param {number[]} position - Posição atual da peça [linha, coluna].
+ * @param {Object} piece - Objeto da peça contendo tipo, cor, etc.
+ * @returns {number[][]} Array de posições possíveis [linha, coluna].
+ */
 function getPossibleMoves(position, piece) {
     switch (piece.type) {
         case 'pawn':
@@ -285,8 +518,17 @@ function getPossibleMoves(position, piece) {
         default:
             return [];
     }
-}
+};
 
+/**
+ * Retorna todas as casas que uma peça pode atacar a partir de uma posição.
+ * Diferente de getPossibleMoves, inclui apenas posições atacáveis, não se importando
+ * se o movimento seria legal para o rei.
+ *
+ * @param {number[]} position - Posição atual da peça [linha, coluna].
+ * @param {Object} piece - Objeto da peça contendo tipo e cor.
+ * @returns {number[][]} Array de posições atacáveis [linha, coluna].
+ */
 function getAttackingMoves(position, piece) {
     let [row, col] = position;
     let color = piece.color;
@@ -335,28 +577,94 @@ function getAttackingMoves(position, piece) {
     }
 
     return attackingMoves;
-}
+};
 
-// Função auxiliar para peças deslizantes (torre, bispo, rainha)
-function getSlidingMoves(position, directions) {
-    let [row, col] = position;
-    let moves = [];
+/**
+ * Verifica se um movimento específico é válido para uma peça.
+ *
+ * @param {number[]} fromPosition - Posição inicial [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino [linha, coluna].
+ * @param {Object} piece - Objeto da peça contendo tipo, cor e posições.
+ * @returns {boolean} Retorna true se o movimento é permitido, false caso contrário.
+ */
+function isValidateMove(fromPosition, toPosition, piece) {
+    const [toRow, toCol] = toPosition;
+    const possibleMoves = getPossibleMoves(fromPosition, piece);
 
-    for (let [dx, dy] of directions) {
-        let x = row + dx;
-        let y = col + dy;
+    // Verifica se o movimento é válido
+    const isValidMove = possibleMoves.some(
+        ([row, col]) => row === toRow && col === toCol
+    );
 
-        while (isValidBoardPosition(x, y)) {
-            moves.push([x, y]);
-            if (VIRTUAL_BOARD[x][y]) break; // Para ao encontrar uma peça
-            x += dx;
-            y += dy;
-        }
+    if (!isValidMove) return false;
+
+    return true; // Movimento válido
+};
+
+/**
+ * Verifica se mover uma peça de uma posição para outra deixaria o rei do jogador em segurança.
+ *
+ * @param {number[]} fromPosition - Posição inicial [linha, coluna] da peça.
+ * @param {number[]} toPosition - Posição de destino [linha, coluna].
+ * @param {string} player - Cor do jogador ("white" ou "black").
+ * @returns {boolean} Retorna true se o movimento não deixar o rei em xeque, false caso contrário.
+ */
+function isMoveSafe(fromPosition, toPosition, player) {
+    const [fromRow, fromCol] = fromPosition;
+    const [toRow, toCol] = toPosition;
+
+    // Salva o estado original
+    const originalPiece = VIRTUAL_BOARD[fromRow][fromCol];
+    const capturedPiece = VIRTUAL_BOARD[toRow][toCol]; // Pode ser null
+
+    // Simula o movimento
+    VIRTUAL_BOARD[fromRow][fromCol] = null;
+    VIRTUAL_BOARD[toRow][toCol] = originalPiece;
+
+    // Se for o rei, atualiza a posição temporária
+    if (originalPiece.type === "king") {
+        GAME_STATE.kingPositions[player] = [toRow, toCol];
     }
 
-    return moves;
-}
+    // Atualiza a matriz de ataque para a nova configuração do tabuleiro
+    updateAttackBoardPosition();
 
+    // Verifica se o próprio rei está em xeque
+    const kingIsInCheck = isKingInCheck(player);
+
+    // Restaura o estado original
+    VIRTUAL_BOARD[fromRow][fromCol] = originalPiece;
+    VIRTUAL_BOARD[toRow][toCol] = capturedPiece;
+
+    if (originalPiece.type === "king") {
+        GAME_STATE.kingPositions[player] = [fromRow, fromCol];
+    }
+
+    // Retorna `false` se o movimento colocar o rei em xeque
+    return !kingIsInCheck;
+};
+
+/**
+ * Move a peça no DOM de uma posição para outra, baseada nas posições do tabuleiro virtual.
+ *
+ * @param {number[]} fromPos - Posição inicial [linha, coluna].
+ * @param {number[]} toPos - Posição de destino [linha, coluna].
+ */
+function movePieceInDOMByPosition(fromPos, toPos) {
+    const fromCell = document.querySelector(`[data-position="${fromPos.join(",")}"]`);
+    const toCell = document.querySelector(`[data-position="${toPos.join(",")}"]`);
+    const piece = getPiecePositionOnVirtualBoard(toPos);
+    movePieceElement(fromCell, toCell, toPos, piece);
+};
+
+// ----------------- FUNÇÕES DE MOVIMENTO
+/**
+ * Retorna os movimentos válidos de um peão a partir de sua posição atual.
+ * Inclui movimento simples, duplo inicial, capturas diagonais e en passant.
+ *
+ * @param {number[]} position - Posição atual do peão [linha, coluna].
+ * @returns {number[][]} Lista de posições possíveis para o peão.
+ */
 function getPawnMove(position) {
     const [row, col] = position;
     const { color } = getPiecePositionOnVirtualBoard(position);
@@ -390,8 +698,14 @@ function getPawnMove(position) {
     moves.push(...enPassantMoves);
 
     return moves;
-}
+};
 
+/**
+ * Verifica se o peão pode realizar o movimento en passant.
+ *
+ * @param {number[]} fromPosition - Posição atual do peão [linha, coluna].
+ * @returns {number[][]} Lista de posições válidas para en passant.
+ */
 function canEnPassant(fromPosition) {
     const [row, col] = fromPosition;
     const pawn = getPiecePositionOnVirtualBoard(fromPosition);
@@ -428,9 +742,16 @@ function canEnPassant(fromPosition) {
     });
 
     return enPassantMoves;
-}
+};
 
+/**
+ * Remove o peão adversário capturado via en passant, se o movimento for realizado.
+ *
+ * @param {number[]} toPosition - Posição de destino do peão que realizou o en passant [linha, coluna].
+ */
 function removePawnEnPassant(toPosition) {
+    if (!GAME_STATE.lastPawnDoubleMove) return;
+
     const [toRow, toCol] = toPosition;
     const [emPassantRow, emPassantCol] = GAME_STATE.enPassantPosition;
     const existPawnEnPassant = GAME_STATE.lastPawnDoubleMove;
@@ -444,8 +765,16 @@ function removePawnEnPassant(toPosition) {
             emPassantImg.remove();
         }
     }
-}
+};
 
+/**
+ * Atualiza o estado do jogo para armazenar o último movimento duplo de um peão.
+ * Isso é necessário para habilitar a captura en passant.
+ *
+ * @param {number[]} fromPosition - Posição inicial do peão [linha, coluna].
+ * @param {number[]} toPosition - Posição final do peão [linha, coluna].
+ * @param {Object} piece - Objeto representando o peão que se moveu.
+ */
 function setLastPawnDoubleMove(fromPosition, toPosition, piece) {
 
     if (piece.type !== "pawn") return;
@@ -463,8 +792,17 @@ function setLastPawnDoubleMove(fromPosition, toPosition, piece) {
             positions: [[toRow, toCol]]
         };
     }
-}
+};
 
+/**
+ * Calcula todos os movimentos válidos de uma torre a partir de uma posição no tabuleiro.
+ *
+ * A torre se move em linha reta, tanto na horizontal quanto na vertical,
+ * até encontrar outra peça. Captura peças adversárias e para ao encontrar qualquer peça.
+ *
+ * @param {number[]} position - Posição atual da torre [linha, coluna].
+ * @returns {number[][]} Array de posições válidas para a torre.
+ */
 function getRookMove(position) {
     const [row, col] = position;
     const piece = getPiecePositionOnVirtualBoard(position);
@@ -495,8 +833,17 @@ function getRookMove(position) {
     });
 
     return moves;
-}
+};
 
+/**
+ * Calcula todos os movimentos válidos de um cavalo a partir de uma posição no tabuleiro.
+ *
+ * O cavalo se move em "L" (duas casas em uma direção e uma na perpendicular),
+ * pulando sobre outras peças. Captura peças adversárias.
+ *
+ * @param {number[]} position - Posição atual do cavalo [linha, coluna].
+ * @returns {number[][]} Array de posições válidas para o cavalo.
+ */
 function getKnightMove(position) {
     const [row, col] = position;
     const piece = getPiecePositionOnVirtualBoard(position);
@@ -520,8 +867,17 @@ function getKnightMove(position) {
     });
 
     return moves;
-}
+};
 
+/**
+ * Calcula todos os movimentos válidos de um bispo a partir de uma posição no tabuleiro.
+ *
+ * O bispo se move em diagonais, parando se encontrar uma peça aliada
+ * ou capturando uma peça adversária.
+ *
+ * @param {number[]} position - Posição atual do bispo [linha, coluna].
+ * @returns {number[][]} Array de posições válidas para o bispo.
+ */
 function getBishopMove(position) {
     const [row, col] = position;
     const piece = getPiecePositionOnVirtualBoard(position);
@@ -552,8 +908,16 @@ function getBishopMove(position) {
     });
 
     return moves;
-}
+};
 
+/**
+ * Calcula todos os movimentos válidos da rainha a partir de uma posição no tabuleiro.
+ *
+ * A rainha combina os movimentos da torre (horizontal e vertical) e do bispo (diagonais).
+ *
+ * @param {number[]} position - Posição atual da rainha [linha, coluna].
+ * @returns {number[][]} Array de posições válidas para a rainha.
+ */
 function getQueenMove(position) {
     const moves = [
         ...getRookMove(position),
@@ -561,8 +925,15 @@ function getQueenMove(position) {
     ];
 
     return moves;
-}
+};
 
+/**
+ * Calcula todos os movimentos válidos do rei a partir de uma posição no tabuleiro,
+ * incluindo movimentos normais de uma casa e possíveis roques (curto e longo).
+ *
+ * @param {number[]} position - Posição atual do rei [linha, coluna].
+ * @returns {number[][]} Array de posições válidas para o rei.
+ */
 function getKingMove(position) {
     const [row, col] = position;
     const piece = getPiecePositionOnVirtualBoard(position);
@@ -587,209 +958,134 @@ function getKingMove(position) {
         }
     });
 
+    // --- Verificar roque ---
+    if (canCastle(position, [row, 6], piece.color)) moves.push([row, col]); // roque curto.
+    if (canCastle(position, [row, 2], piece.color)) moves.push([row, col]); // roque longo.   
+
     return moves;
-}
+};
 
+/**
+ * Verifica se o rei de determinada cor pode realizar o roque (curto ou longo)
+ * a partir de sua posição atual até a posição de destino.
+ *
+ * @param {number[]} fromPosition - Posição atual do rei [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino do rei [linha, coluna].
+ * @param {"white"|"black"} color - Cor do rei.
+ * @returns {boolean} Retorna true se o roque for permitido, false caso contrário.
+ */
 function canCastle(fromPosition, toPosition, color) {
+    // Atualiza matriz de ataque
+    updateAttackBoardPosition();
+
+    const [fromRow, fromCol] = fromPosition;
     const row = color === "white" ? 7 : 0;
 
-    if (!isKingInInitialPosition(color)) {
-        console.log("❌ Roque negado: Rei já se moveu.");
-        return false;
-    }
+    // Determina se é roque curto ou longo
+    const isKingside = toPosition[1] > fromCol;
 
-    const isKingside = toPosition[1] === 6;
-    const isQueenside = toPosition[1] === 2;
-    if (!isKingside && !isQueenside) {
-        console.log("❌ Roque negado: Destino não é uma casa válida para o roque.");
-        return false;
-    }
+    // Só permite se o rei está na posição inicial
+    if (!isKingInInitialPosition(color)) return false;
 
-    const rookCol = isKingside ? 7 : 0;
-    if (!isRookInInitialPosition(color, isKingside ? "kingside" : "queenside")) {
-        console.log("❌ Roque negado: Torre já se moveu ou não está na posição inicial.");
-        return false;
-    }
+    // Verifica se a torre correspondente está na posição inicial
+    const side = isKingside ? "kingside" : "queenside";
+    if (!isRookInInitialPosition(color, side)) return false;
 
-    const intermediateCols = isKingside ? [5, 6] : [1, 2, 3];
-    const attackCols = isKingside ? [4, 5, 6] : [2, 3, 4];
+    // Verifica se há peças entre rei e torre
+    const intermediateCols = isKingside ? [fromCol + 1, fromCol + 2] : [fromCol - 3, fromCol - 2, fromCol - 1];
+    const pathClear = intermediateCols.every(col => !VIRTUAL_BOARD[row][col]);
+    if (!pathClear) return false;
 
-    for (let col of intermediateCols) {
-        if (VIRTUAL_BOARD[row][col]) {
-            console.log(`❌ Roque negado: Casa [${row}, ${col}] bloqueada.`);
-            return false;
-        }
-    }
+    // Rei não pode estar em xeque
+    if (isKingInCheck(color)) return false;
 
-    if (isKingInCheck(color)) {
-        console.log("❌ Roque negado: Rei está em xeque.");
-        return false;
-    }
+    // Casas que o rei atravessará não podem estar atacadas
+    const kingPathCols = isKingside ? [fromCol, fromCol + 1, fromCol + 2] : [fromCol, fromCol - 1, fromCol - 2];
+    const opponentColor = color === "white" ? "black" : "white";
+    const safePath = kingPathCols.every(col => !ATTACK_BOARD[row][col].has(opponentColor));
+    if (!safePath) return false;
 
-    for (let col of attackCols) {
-        if (ATTACK_BOARD[row][col]) {
-            console.log(`❌ Roque negado: Casa [${row}, ${col}] está sob ataque.`);
-            return false;
-        }
-    }
-
-    console.log("✅ Roque permitido!");
     return true;
-}
+};
 
+/**
+ * Executa o movimento de roque (curto ou longo) no tabuleiro virtual e no DOM.
+ *
+ * @param {number[]} fromPosition - Posição atual do rei [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino do rei [linha, coluna].
+ * @param {"white"|"black"} color - Cor do rei.
+ */
 function executeCastle(fromPosition, toPosition, color) {
-    const row = color === "white" ? 7 : 0;
+    const [fromRow, fromCol] = fromPosition;
+    const row = fromRow; // usa a linha real do rei clicado
     const isKingside = toPosition[1] === 6;
-    const isQueenside = toPosition[1] === 2;
-
-    if (!isKingside && !isQueenside) return;
-
     const rookColFrom = isKingside ? 7 : 0;
     const rookColTo = isKingside ? 5 : 3;
 
-    // Atualiza o tabuleiro virtual
-    const kingPiece = VIRTUAL_BOARD[row][4];
+    const kingPiece = getPiecePositionOnVirtualBoard(fromPosition);
     const rookPiece = VIRTUAL_BOARD[row][rookColFrom];
 
-    VIRTUAL_BOARD[row][4] = null;
-    VIRTUAL_BOARD[row][rookColFrom] = null;
-    VIRTUAL_BOARD[row][toPosition[1]] = kingPiece;
-    VIRTUAL_BOARD[row][rookColTo] = rookPiece;
+    // Atualiza tabuleiro virtual
+    updateVirutualBoardPosition(fromPosition, toPosition, kingPiece);
+    updateVirutualBoardPosition([row, rookColFrom], [row, rookColTo], rookPiece);
 
-    // Atualiza a posição do rei no estado do jogo
+    // Atualiza DOM
+    movePieceInDOMByPosition(fromPosition, toPosition);
+    movePieceInDOMByPosition([row, rookColFrom], [row, rookColTo]);
+
+    // Atualiza posição do rei
     GAME_STATE.kingPositions[color] = [row, toPosition[1]];
 
-    // Atualiza o DOM
-    movePieceInDOM([row, 4], toPosition);
-    movePieceInDOM([row, rookColFrom], [row, rookColTo]);
+    clearSelectedPiece();
+    toggleCurrentPlayer();
+};
 
-    // Troca a vez do jogador
-    switchTurnPlayer();
-}
+/**
+ * Retorna todas as casas possíveis que uma peça deslizante (torre, bispo, rainha)
+ * pode alcançar em determinadas direções, considerando bloqueios de peças.
+ *
+ * @param {number[]} position - Posição inicial da peça [linha, coluna].
+ * @param {number[][]} directions - Array de vetores [dx, dy] representando as direções de movimento.
+ * @return {number[][]} moves - Array de posições válidas [linha, coluna].
+ */
+function getSlidingMoves(position, directions) {
+    let [row, col] = position;
+    let moves = [];
 
-function updateAttackBoard() {
-    ATTACK_BOARD = Array(8).fill(null).map(() => Array(8).fill(false));
+    for (let [dx, dy] of directions) {
+        let x = row + dx;
+        let y = col + dy;
 
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            let piece = VIRTUAL_BOARD[row][col];
-
-            if (piece) {
-                let possibleMoves = getPossibleMoves([row, col], piece);
-
-                possibleMoves.forEach(([x, y]) => {
-                    const targetPiece = VIRTUAL_BOARD[x][y];
-
-                    if (!targetPiece || targetPiece.color !== piece.color) {
-                        ATTACK_BOARD[x][y] = true; // Marca a casa como atacada
-                        console.log(`🔴 Peça ${piece.type} (${piece.color}) atacando [${x}, ${y}]`);
-                    }
-                });
-            }
+        while (isValidBoardPosition(x, y)) {
+            moves.push([x, y]);
+            if (VIRTUAL_BOARD[x][y]) break; // Para ao encontrar uma peça
+            x += dx;
+            y += dy;
         }
     }
 
-    console.log("🔍 Matriz de ataque atualizada:");
-    console.log(ATTACK_BOARD);
-}
+    return moves;
+};
 
+// ----------------- AUXILIARES
+/**
+ * Verifica se o rei de determinada cor está em xeque.
+ *
+ * @param {"white"|"black"} color - Cor do rei a verificar.
+ * @return {boolean} - Retorna `true` se o rei estiver em xeque, `false` caso contrário.
+ */
 function isKingInCheck(color) {
-    const kingPosition = GAME_STATE.kingPositions[color];
-    const [kingRow, kingCol] = kingPosition;
-
-    console.log(`🔍 Verificando xeque para o rei ${color} na posição`, kingPosition);
-    console.log("🚨 Casa do rei está atacada?", ATTACK_BOARD[kingRow][kingCol]);
-
-    // Verifica se a posição do rei está marcada como atacada
-    return ATTACK_BOARD[kingRow][kingCol];
-}
-
-const isKingInInitialPosition = (color) => {
-    return GAME_STATE.kingPositions[color][0] === INITIAL_POSITIONS[color][5][0][0] &&
-        GAME_STATE.kingPositions[color][1] === INITIAL_POSITIONS[color][5][0][1];
+    const [kr, kc] = GAME_STATE.kingPositions[color];
+    const opponent = color === "white" ? "black" : "white";
+    return ATTACK_BOARD[kr][kc].has(opponent);
 };
 
-const isRookInInitialPosition = (color, side) => {
-    const rookCol = side === "kingside" ? 7 : 0;
-    const rookPosition = VIRTUAL_BOARD[INITIAL_POSITIONS[color][1][side === "kingside" ? 1 : 0][0]][rookCol];
-
-    return rookPosition && rookPosition.type === "rook" && rookPosition.color === color;
-};
-
-function isValidateMove(fromPosition, toPosition, piece) {
-    const [toRow, toCol] = toPosition;
-    const possibleMoves = getPossibleMoves(fromPosition, piece);
-
-    // Verifica se o movimento é válido
-    const isValidMove = possibleMoves.some(
-        ([row, col]) => row === toRow && col === toCol
-    );
-
-    if (!isValidMove) return false;
-
-    return true; // Movimento válido
-}
-
-function isValidBoardPosition(row, col) {
-    return row >= 0 && row < 8 && col >= 0 && col < 8;
-}
-
-function hasPieceAtPosition(position) {
-    const [row, col] = position;
-    if (!isValidBoardPosition(row, col)) return false;
-    const piece = VIRTUAL_BOARD[row][col];
-    return piece !== null; // Verifica se existe peça na posição
-}
-
-function isSameColorPiece(position, color) {
-    const piece = getPiecePositionOnVirtualBoard(position);
-    return piece ? piece.color === color : false;
-}
-
-function getPiecePositionOnVirtualBoard(position) {
-    const [row, col] = position;
-    if (!isValidBoardPosition(row, col)) return false;
-    return VIRTUAL_BOARD[row][col];
-}
-
-function updateVirtualBoard(fromPosition, toPosition, piece) {
-    const [fromRow, fromCol] = fromPosition;
-    const [toRow, toCol] = toPosition;
-    if (piece.type === "king") {
-        GAME_STATE.kingPositions[piece.color] = [toRow, toCol];
-    }
-    VIRTUAL_BOARD[fromRow][fromCol] = null;
-    VIRTUAL_BOARD[toRow][toCol] = piece;
-    piece.positions = [[toRow, toCol]];
-}
-
-function getVirtualBoard() {
-    console.log("🔍 Matriz de jogadas atualizada:");
-    console.log(VIRTUAL_BOARD);
-}
-
-function createPieces(color, positions) {
-    const pieceKeys = Object.keys(PIECE_TYPES);
-
-    return Object.entries(positions).flatMap(([index, posArray], i) =>
-        posArray.map(position => ({
-            name: PIECE_TYPES[pieceKeys[i]].name,
-            type: PIECE_TYPES[pieceKeys[i]].type,
-            positions: [position], // Cada peça tem uma posição inicial
-            symbol: PIECE_TYPES[pieceKeys[i]].symbol,
-            color,
-            pathImg: `./img/pieces/${color}/${PIECE_TYPES[pieceKeys[i]].img}`
-        }))
-    );
-}
-
-function switchTurnPlayer() {
-    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer === "white" ? "black" : "white";
-    console.log(`Turno do jogador: ${GAME_STATE.currentPlayer}`);
-
-    // Verifica se o jogo terminou em xeque-mate ou empate
-}
-
+/**
+ * Verifica se o jogador da cor especificada está em xeque-mate.
+ *
+ * @param {"white"|"black"} color - Cor do jogador a verificar.
+ * @return {boolean} - Retorna `true` se o jogador estiver em xeque-mate, `false` caso contrário.
+ */
 function isCheckmate(color) {
     if (!isKingInCheck(color)) return false;
 
@@ -812,8 +1108,14 @@ function isCheckmate(color) {
     }
 
     return true;
-}
+};
 
+/**
+ * Verifica se o jogador da cor especificada está em empate por afogamento (stalemate).
+ *
+ * @param {"white"|"black"} color - Cor do jogador a verificar.
+ * @return {boolean} - Retorna `true` se for stalemate, `false` caso contrário.
+ */
 function isStalemate(color) {
     if (isKingInCheck(color)) return false;
 
@@ -828,64 +1130,160 @@ function isStalemate(color) {
     }
 
     return true;
-}
+};
 
-function highligtPossibleMoves(piece, position, board) {
-    const newPossibleMoves = getPossibleMoves(position, piece);
+/**
+ * Verifica se o rei da cor especificada está na posição inicial.
+ * @param {"white"|"black"} color - Cor do rei.
+ * @return {boolean} - Retorna true se o rei estiver na posição inicial.
+ */
+const isKingInInitialPosition = (color) => {
+    return GAME_STATE.kingPositions[color][0] === INITIAL_POSITIONS[color][5][0][0] &&
+        GAME_STATE.kingPositions[color][1] === INITIAL_POSITIONS[color][5][0][1];
+};
 
-    removeHighlightMoves(newPossibleMoves, board);
+/**
+ * Verifica se a torre da cor e lado especificados está na posição inicial.
+ * @param {"white"|"black"} color - Cor da torre.
+ * @param {"kingside"|"queenside"} side - Lado da torre.
+ * @return {boolean} - Retorna true se a torre estiver na posição inicial.
+ */
+const isRookInInitialPosition = (color, side) => {
+    const rookInitialPos = INITIAL_POSITIONS[color][1][side === "kingside" ? 1 : 0];
+    const rookPiece = VIRTUAL_BOARD[rookInitialPos[0]][rookInitialPos[1]];
+    return rookPiece && rookPiece.type === "rook" && rookPiece.color === color;
+};
 
-    newPossibleMoves.forEach((move) => {
-        const cell = document.querySelector(`[data-position="${move.join(",")}"]`);
-        if (cell) {
-            const circle = document.createElement("div");
-            circle.classList.add(
-                "moves-circle",
-                "absolute",
-                "w-3",
-                "h-3",
-                "bg-yellow-500",
-                "rounded-full",
-                "absolute",
-                "top-1/2",
-                "left-1/2",
-                "transform",
-                "-translate-x-1/2",
-                "-translate-y-1/2",
-                "opacity-80"
-            );
-            cell.appendChild(circle);
-        }
-    });
-}
+/**
+ * Verifica se uma posição [row, col] está dentro do tabuleiro (8x8).
+ * @param {number} row - Linha da posição.
+ * @param {number} col - Coluna da posição.
+ * @return {boolean} - Retorna true se a posição for válida.
+ */
+function isValidBoardPosition(row, col) {
+    return row >= 0 && row < 8 && col >= 0 && col < 8;
+};
 
-function removeHighlightMoves(moves, board) {
-    const circles = document.querySelectorAll(".moves-circle");
-    if (circles) {
-        circles.forEach((circle) => {
-            circle.remove();
-        });
-    }
-}
-
-function highlightCell(position) {
+/**
+ * Verifica se existe uma peça em uma posição específica do tabuleiro.
+ * @param {number[]} position - Posição no tabuleiro [row, col].
+ * @return {boolean} - Retorna true se houver uma peça na posição.
+ */
+function hasPieceAtPosition(position) {
     const [row, col] = position;
-    const cells = document.querySelectorAll(".cell");
-    cells.forEach((cell) => {
-        cell.classList.toggle(
-            "bg-[#F59E0B]",
-            cell.dataset.position === `${row},${col}`
-        );
-    });
-}
+    if (!isValidBoardPosition(row, col)) return false;
+    const piece = VIRTUAL_BOARD[row][col];
+    return piece !== null; // Verifica se existe peça na posição
+};
 
-function getCellColor(row, col) {
+/**
+ * Verifica se a peça em uma posição específica é da cor informada.
+ * @param {number[]} position - Posição no tabuleiro [row, col].
+ * @param {string} color - Cor a ser verificada ('white' ou 'black').
+ * @return {boolean} - Retorna true se houver uma peça da cor especificada na posição.
+ */
+function isPieceOfColor(position, color) {
+    const piece = getPiecePositionOnVirtualBoard(position);
+    return piece ? piece.color === color : false;
+};
+
+/**
+ * Retorna a classe CSS para a cor de fundo de uma célula do tabuleiro.
+ * @param {number} row Linha da célula (0-7)
+ * @param {number} col Coluna da célula (0-7)
+ * @return {string} Classe CSS da cor da célula
+ * 
+ * Sugestão de melhoria no nome: `getBoardCellColor`
+ */
+function getBoardCellColor(row, col) {
     return (row + col) % 2 === 0 ? "bg-[#EBECD0]" : "bg-[#739552]";
+};
+
+// ------------------ VIRTUAL BOARD e ATTACK BOARD
+/**
+ * Imprime no console o estado atual do tabuleiro virtual de posições.
+ * Útil para debug.
+ * @return {void}
+ * 
+ */
+function logVirtualBoard() {
+    console.log("🔍 Matriz de jogadas atualizada:");
+    console.log(VIRTUAL_BOARD);
+};
+
+/**
+ * Atualiza o tabuleiro virtual de posições após um movimento de peça.
+ * Também atualiza a posição do rei, se a peça movida for o rei.
+ * @param {number[]} fromPosition - Posição inicial [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino [linha, coluna].
+ * @param {Object} piece - Objeto da peça que está sendo movida.
+ * @return {void}
+ * 
+ */
+function updateVirutualBoardPosition(fromPosition, toPosition, piece) {
+    const [fromRow, fromCol] = fromPosition;
+    const [toRow, toCol] = toPosition;
+    if (piece.type === "king") {
+        GAME_STATE.kingPositions[piece.color] = [toRow, toCol];
+    }
+    VIRTUAL_BOARD[fromRow][fromCol] = null;
+    VIRTUAL_BOARD[toRow][toCol] = piece;
+    piece.positions = [[toRow, toCol]];
+};
+
+/**
+ * Atualiza o tabuleiro virtual de ataques (ATTACK_BOARD) a partir do estado atual das peças no tabuleiro.
+ * Cada célula do ATTACK_BOARD contém um Set com as cores que atacam essa posição.
+ * @return {void}
+ * 
+ */
+function updateAttackBoardPosition() {
+    ATTACK_BOARD = initializeAttackBoard();
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = VIRTUAL_BOARD[r][c];
+            if (!piece) continue;
+
+            const attacks = getAttackingMoves([r, c], piece);
+            attacks.forEach(([ar, ac]) => {
+                ATTACK_BOARD[ar][ac].add(piece.color);
+                // Debug opcional:
+                // console.log(
+                //     `Peça ${piece.type} (${piece.color}) ataca [${ar}, ${ac}]`
+                // );
+            });
+        }
+    }
+
+    console.log("🔍 Matriz de ataque atualizada:");
+    console.log(ATTACK_BOARD);
+};
+
+/**
+ * Retorna a peça presente em uma posição específica do tabuleiro de peças (VIRTUAL_BOARD).
+ * @param {number[]} position - Posição no tabuleiro [row, col].
+ * @return {Object|null|false} - A peça na posição ou false se a posição for inválida.
+ */
+function getPiecePositionOnVirtualBoard(position) {
+    const [row, col] = position;
+    if (!isValidBoardPosition(row, col)) return false;
+    return VIRTUAL_BOARD[row][col];
 }
 
-function clearSelectedPiece() {
-    GAME_STATE.selectedPiece = null;
-}
+// ------------------ TURNOS
+/**
+ * Alterna o turno do jogador atual entre "white" e "black".
+ * Atualiza GAME_STATE.currentPlayer.
+ * @return {void}
+ *
+ */
+function toggleCurrentPlayer() {
+    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer === "white" ? "black" : "white";
+    console.log(`Turno do jogador: ${GAME_STATE.currentPlayer}`);
 
-// Start the game
+    // Verifica se o jogo terminou em xeque-mate ou empate
+};
+
+// ----------------- INICIAR JOGO
 startGame();
