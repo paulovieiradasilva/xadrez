@@ -16,7 +16,7 @@ let VIRTUAL_BOARD = initializeVirtualBoard();
  * Estrutura: matriz 8x8 de Sets, onde cada célula indica
  * quais cores atacam aquela posição (ex: {"white"}, {"black"}, ou {"white","black"}).
  * 
- * É recalculada chamando `updateAttackBoard()` após cada jogada.
+ * É recalculada chamando `updateAttackBoardPosition()` após cada jogada.
  */
 let ATTACK_BOARD = initializeAttackBoard();
 
@@ -696,6 +696,8 @@ function getPawnMove(position) {
     // Verificar captura en passant
     const enPassantMoves = canEnPassant(position);
     moves.push(...enPassantMoves);
+    
+    console.log("getPawnMove ~ moves: ", moves);
 
     return moves;
 };
@@ -832,6 +834,8 @@ function getRookMove(position) {
         }
     });
 
+    console.log("getRookMove ~ moves: ", moves);
+
     return moves;
 };
 
@@ -865,6 +869,8 @@ function getKnightMove(position) {
             }
         }
     });
+
+    console.log("getKnightMove ~ moves: ", moves);
 
     return moves;
 };
@@ -907,6 +913,8 @@ function getBishopMove(position) {
         }
     });
 
+    console.log("getBishopMove ~ moves: ", moves);
+
     return moves;
 };
 
@@ -923,6 +931,8 @@ function getQueenMove(position) {
         ...getRookMove(position),
         ...getBishopMove(position)
     ];
+
+    console.log("getQueenMove ~ moves: ", moves);
 
     return moves;
 };
@@ -961,6 +971,8 @@ function getKingMove(position) {
     // --- Verificar roque ---
     if (canCastle(position, [row, 6], piece.color)) moves.push([row, col]); // roque curto.
     if (canCastle(position, [row, 2], piece.color)) moves.push([row, col]); // roque longo.   
+
+    console.log("getKingMove ~ moves: ", moves);
 
     return moves;
 };
@@ -1063,6 +1075,8 @@ function getSlidingMoves(position, directions) {
             y += dy;
         }
     }
+
+    console.log("getSlidingMoves ~ moves: ", moves);
 
     return moves;
 };
