@@ -10,30 +10,28 @@
 
 <body>
     <div class="flex flex-col justify-center items-center h-screen bg-gray-800 space-y-2">
-        <div>
-            <!-- <div class="flex justify-between items-center border border-white mb-2 px-2 w-full h-12 bg-[#EBECD0]">
-                <div id="white-pieces-capture">pieces</div>
-                <div id="white-buttons-controls" class="grid grid-cols-4 gap-2">
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">1</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">2</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">3</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">4</div>
-                </div>
-            </div> -->
-
-            <div class="grid grid-cols-8 gap-0" id="board"></div>
-
-            <!-- <div class="flex justify-between items-center border border-white mt-2 px-2 w-full h-12 bg-[#EBECD0]">
-                <div id="bleack-pieces-capture">pieces</div>
-                <div id="bleack-buttons-controls" class="grid grid-cols-4 gap-2">
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">1</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">2</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">3</div>
-                    <div class="w-10 h-10 bg-indigo-400 grid place-items-center">4</div>
-                </div>
-            </div> -->
+        <div class="w-full max-w-[90vmin] aspect-square">
+            <div class="grid grid-cols-8 grid-rows-8 w-full h-full" id="board"></div>
         </div>
     </div>
+
+    <!-- Backdrop -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 hidden">
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 flex justify-center items-center hidden">
+        <div class="bg-white relative rounded shadow-lg w-80">
+            <div class="p-4">
+                <span class="absolute top-2 right-3 text-2xl hover:cursor-pointer hover:text-gray-600"
+                    onclick="closeModal()">
+                    &times;
+                </span>
+                <p class="modal-message w-full text-sm"></p>
+            </div>
+        </div>
+    </div>
+
 
     <script src="./script.js"></script>
 </body>

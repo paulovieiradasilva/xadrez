@@ -49,27 +49,23 @@ let GAME_STATE = {
 };
 
 /**
- * Posições iniciais das peças no tabuleiro.
- * Cada entrada contém as coordenadas [linha, coluna].
+ * Representação do tabuleiro inicial em FEN expandido.
+ * Cada linha é uma string de 8 caracteres:
+ * - Maiúsculas = peças brancas
+ * - Minúsculas = peças pretas
+ * - "." = casa vazia
  */
-const INITIAL_POSITIONS = {
-    white: [
-        [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [6, 6], [6, 7]], // Peões
-        [[7, 0], [7, 7]], // Torres
-        [[7, 1], [7, 6]], // Cavalos
-        [[7, 2], [7, 5]], // Bispos
-        [[7, 3]], // Rainha
-        [[7, 4]]  // Rei
-    ],
-    black: [
-        [[1, 0], [1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7]], // Peões
-        [[0, 0], [0, 7]], // Torres
-        [[0, 1], [0, 6]], // Cavalos
-        [[0, 2], [0, 5]], // Bispos
-        [[0, 3]], // Rainha
-        [[0, 4]]  // Rei
-    ]
-};
+const INITIAL_POSITIONS = [
+    "rnbqkbnr", // linha 0 (pretas)
+    "pppppppp", // linha 1
+    "........", // linha 2
+    "........", // linha 3
+    "........", // linha 4
+    "........", // linha 5
+    "PPPPPPPP", // linha 6
+    "RNBQKBNR"  // linha 7 (brancas)
+];
+
 
 /**
  * Definições dos tipos de peças:
@@ -88,15 +84,6 @@ const PIECE_TYPES = {
 };
 
 /**
- * Instâncias das peças no tabuleiro inicial,
- * geradas a partir de INITIAL_POSITIONS.
- */
-const PIECES = {
-    white: createPieces("white", INITIAL_POSITIONS.white),
-    black: createPieces("black", INITIAL_POSITIONS.black)
-};
-
-/**
  * Define se as casas devem ser destacadas ou não.
  */
 let SHOW_HIGHLIGHT = true;
@@ -109,7 +96,7 @@ let SHOW_HIGHLIGHT = true;
  */
 function startGame() {
     createBoard();
-    addPieces();
+    addPieces(INITIAL_POSITIONS);
 };
 
 /**
@@ -150,32 +137,39 @@ function createBoard() {
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const cell = document.createElement("div");
+            const { bg, text } = getBoardCellColors(row, col);
+
             cell.classList.add(
                 "relative",
-                "w-20",
-                "h-20",
+                "w-full",
+                "h-full",
                 "flex",
                 "flex-col",
                 "justify-center",
                 "items-center",
-                "text-white",
-                "cell"
+                "cell",
+                bg,
+                text
             );
-            cell.classList.add(getBoardCellColor(row, col));
             cell.dataset.position = [row, col];
             cell.dataset.id = `${letters[col]}${8 - row}`;
 
-            cell.textContent = `[${row}, ${col}]`;
-            cell.style.fontSize = "10px";
+            let coordnates = document.createElement("span");
+            coordnates.textContent = `[${row}, ${col}]`;
+            coordnates.classList.add("absolute", "top-1", "text-[0.4rem]", "sm:text-[0.6rem]", text);
+
+            cell.appendChild(coordnates);
 
             if (row === 7) {
                 const letter = document.createElement("span");
                 letter.textContent = letters[col];
                 letter.classList.add(
                     "absolute",
-                    "text-sm",
+                    "text-[0.5rem]",
+                    "sm:text-[0.9rem]",
                     "right-1",
-                    "bottom-1"
+                    "bottom-1",
+                    text
                 );
                 cell.appendChild(letter);
             }
@@ -185,9 +179,11 @@ function createBoard() {
                 number.textContent = 8 - row;
                 number.classList.add(
                     "absolute",
-                    "text-sm",
+                    "text-[0.5rem]",
+                    "sm:text-[0.7rem]",
                     "left-1",
-                    "top-1"
+                    "top-1",
+                    text
                 );
                 cell.appendChild(number);
             }
@@ -204,67 +200,87 @@ function createBoard() {
 
 // ----------------- PEÇAS
 /**
- * Cria as peças para uma cor, a partir de um array de posições.
- * @param {string} color - "white" ou "black"
- * @param {Array} positions - Array de arrays de posições por tipo de peça
- * @returns {Array} - Array de objetos de peças
+ * Cria peças de xadrez a partir de uma matriz FEN expandida (8x8).
+ * - Maiúsculas = peças brancas, minúsculas = pretas, "." = vazio.
+ * - Retorna no formato compatível com `addPieces`.
+ *
+ * @param {string[]} positionsFEN - Array de 8 strings representando o tabuleiro.
+ * @returns {Object[]} Lista de peças com {name, type, symbol, color, positions, pathImg}.
+ *
  */
-function createPieces(color, positions) {
-    const pieceKeys = Object.keys(PIECE_TYPES);
+function createPiecesWithFEN(positionsFEN) {
+    const typeMap = {
+        p: PIECE_TYPES.PAWN,
+        r: PIECE_TYPES.ROOK,
+        n: PIECE_TYPES.KNIGHT,
+        b: PIECE_TYPES.BISHOP,
+        q: PIECE_TYPES.QUEEN,
+        k: PIECE_TYPES.KING
+    };
 
-    return Object.entries(positions).flatMap(([index, posArray], i) =>
-        posArray.map(position => ({
-            name: PIECE_TYPES[pieceKeys[i]].name,
-            type: PIECE_TYPES[pieceKeys[i]].type,
-            positions: [position], // Cada peça tem uma posição inicial
-            symbol: PIECE_TYPES[pieceKeys[i]].symbol,
-            color,
-            pathImg: `./img/pieces/${color}/${PIECE_TYPES[pieceKeys[i]].img}`
-        }))
-    );
+    const pieces = [];
+
+    positionsFEN.forEach((row, r) => {
+        row.split("").forEach((char, c) => {
+            if (char === ".") return;
+
+            const isWhite = char === char.toUpperCase();
+            const type = typeMap[char.toLowerCase()];
+
+            pieces.push({
+                ...type,
+                color: isWhite ? "white" : "black",
+                positions: [[r, c]], // compatível com addPieces
+                symbol: type.symbol,
+                pathImg: `./img/pieces/${isWhite ? "white" : "black"}/${type.img}`
+            });
+        });
+    });
+
+    return pieces;
 };
 
 /**
- * Cria objetos de peças de xadrez para um jogador.
- * - Associa cada posição inicial ao tipo correto de peça.
- * - Usa `PIECE_TYPES` como referência para nome, tipo, símbolo e imagem.
- * - Cada peça recebe:
- *   - name: Nome da peça (ex: "Pawn")
- *   - type: Tipo interno (ex: "pawn")
- *   - positions: Array com a posição inicial [[row, col]]
- *   - symbol: Símbolo unicode (ex: ♟)
- *   - color: "white" ou "black"
- *   - pathImg: Caminho da imagem correspondente
+ * Adiciona as peças ao tabuleiro do DOM e atualiza o tabuleiro virtual.
+ * - Funciona com `PIECES` tradicional (white/black) ou FEN (`PIECES.all`).
+ * - Para cada peça:
+ *   - Cria a imagem correspondente
+ *   - Atualiza a posição no tabuleiro virtual via `updateVirutualBoardPosition`
  *
- * @param {string} color - Cor das peças ("white" ou "black").
- * @param {Array} positions - Estrutura de posições iniciais dessa cor.
- * @return {Array<Object>} Lista de objetos representando as peças.
+ * @return {void}
  */
-function addPieces() {
-    Object.entries(PIECES).forEach(([color, pieces]) => {
-        pieces.forEach(piece => {
-            const { name, pathImg, type, color, symbol } = piece;
+function addPieces(INITIAL_POSITIONS) {
+    let pieces = createPiecesWithFEN(INITIAL_POSITIONS);
 
-            piece.positions.forEach((position) => {
-                const cell = document.querySelector(`[data-position="${position.join(",")}"]`);
-                if (cell) {
-                    const img = document.createElement("img");
-                    img.classList.add(
-                        "flex",
-                        "w-16",
-                        "h-16",
-                        "cursor-grab",
-                        "active:cursor-grabbing"
-                    );
-                    img.dataset.id = position;
-                    img.src = pathImg;
-                    img.alt = name;
+    if (!pieces.length) return;
 
-                    updateVirutualBoardPosition(position, position, piece);
+    pieces.forEach(piece => {
+        const { name, pathImg, type, color, symbol } = piece;
 
-                    cell.appendChild(img);
-                }
-            });
+        piece.positions.forEach((position) => {
+            const cell = document.querySelector(`[data-position="${position.join(",")}"]`);
+            if (cell) {
+                const img = document.createElement("img");
+                img.classList.add(
+                    "absolute",
+                    "bottom-0",
+                    "flex",
+                    "w-[3rem]",
+                    "sm:w-[4rem]",
+                    "h-[3rem]",
+                    "sm:h-[4rem]",
+                    "object-contain",
+                    "cursor-grab",
+                    "active:cursor-grabbing"
+                );
+                img.dataset.id = position;
+                img.src = pathImg;
+                img.alt = name;
+
+                updateVirutualBoardPosition(position, position, piece);
+
+                cell.appendChild(img);
+            }
         });
     });
 };
@@ -285,7 +301,7 @@ function cellClicked(event, position) {
     const clickedPiece = getPiecePositionOnVirtualBoard(position);
 
     if (!clickedPiece && !GAME_STATE.selectedPiece) {
-        console.log("Nenhuma peça selecionada e nenhuma peça encontrada na posição clicada.");
+        openModal(`ℹ️ Nenhuma peça encontrada na posição clicada: ${position.join(",")}`);
         return;
     }
 
@@ -300,7 +316,10 @@ function cellClicked(event, position) {
         const fromPosition = GAME_STATE.selectedPiece.positions[0];
 
         // Detecta se é roque
-        if (GAME_STATE.selectedPiece.type === "king" && Math.abs(position[1] - fromPosition[1]) === 2) {
+        if (
+            GAME_STATE.selectedPiece.type === "king" && 
+            Math.abs(position[1] - fromPosition[1]) === 2
+        ) {
             executeCastle(fromPosition, position, GAME_STATE.selectedPiece.color);
             return;
         }
@@ -324,14 +343,19 @@ function cellClicked(event, position) {
  */
 function movePieceInVirtualBoard(fromPosition, toPosition) {
     const piece = getPiecePositionOnVirtualBoard(fromPosition);
+
     if (!piece) return false;
 
     const isValidMove = isValidateMove(fromPosition, toPosition, piece);
-    if (!isValidMove) return false;
+
+    if (!isValidMove) {
+        openModal(`⛔${piece.symbol} Movimento ilegal!`);
+        return;
+    }
 
     if (!isMoveSafe(fromPosition, toPosition, GAME_STATE.currentPlayer)) {
-        alert("❌ Movimento ilegal! Seu rei ficaria em xeque.");
-        
+        openModal(`⛔${piece.symbol} Movimento ilegal! Seu rei ficaria em xeque.`);
+
         clearSelectedPiece();
         clearMoveHighlights();
 
@@ -342,8 +366,7 @@ function movePieceInVirtualBoard(fromPosition, toPosition) {
 
     const opponentColor = piece.color === "white" ? "black" : "white";
     if (isKingInCheck(opponentColor)) {
-        alert(`🚨 Xeque no rei ${opponentColor}!`);
-        console.log(`🚨 Xeque no rei ${opponentColor}!`);
+        openModal(`🚨 Xeque no rei ${opponentColor}!`)
     }
 
     logVirtualBoard();
@@ -373,7 +396,7 @@ function executeMove(fromPosition, toPosition, piece) {
     removePawnEnPassant(toPosition);
     movePieceElement(fromCell, toCell, toPosition, piece);
     updateVirutualBoardPosition(fromPosition, toPosition, piece);
-    highlightMovesForPiece(piece, toPosition, VIRTUAL_BOARD);
+    clearMoveHighlights();
     clearSelectedPiece();
     toggleCurrentPlayer();
 };
@@ -390,12 +413,12 @@ function executeMove(fromPosition, toPosition, piece) {
  * @param {Object} piece - Objeto da peça que está sendo movida.
  * @returns {void}
  */
-function movePieceElement(fromCell, toCell, toPosition, piece) {
+function movePieceElement(fromCell, toCell) {
     const pieceImg = fromCell.querySelector('img');
     fromCell.removeChild(pieceImg);
     toCell.appendChild(pieceImg);
 
-    clearMoveHighlights([], VIRTUAL_BOARD);
+    clearMoveHighlights();
 };
 
 /**
@@ -471,6 +494,7 @@ function clearMoveHighlights() {
 function highlightSelectedCell(position) {
     const [row, col] = position;
     const cells = document.querySelectorAll(".cell");
+
     cells.forEach((cell) => {
         cell.classList.toggle(
             "bg-[#F59E0B]",
@@ -696,8 +720,6 @@ function getPawnMove(position) {
     // Verificar captura en passant
     const enPassantMoves = canEnPassant(position);
     moves.push(...enPassantMoves);
-    
-    console.log("getPawnMove ~ moves: ", moves);
 
     return moves;
 };
@@ -834,8 +856,6 @@ function getRookMove(position) {
         }
     });
 
-    console.log("getRookMove ~ moves: ", moves);
-
     return moves;
 };
 
@@ -869,8 +889,6 @@ function getKnightMove(position) {
             }
         }
     });
-
-    console.log("getKnightMove ~ moves: ", moves);
 
     return moves;
 };
@@ -913,8 +931,6 @@ function getBishopMove(position) {
         }
     });
 
-    console.log("getBishopMove ~ moves: ", moves);
-
     return moves;
 };
 
@@ -931,8 +947,6 @@ function getQueenMove(position) {
         ...getRookMove(position),
         ...getBishopMove(position)
     ];
-
-    console.log("getQueenMove ~ moves: ", moves);
 
     return moves;
 };
@@ -971,8 +985,6 @@ function getKingMove(position) {
     // --- Verificar roque ---
     if (canCastle(position, [row, 6], piece.color)) moves.push([row, col]); // roque curto.
     if (canCastle(position, [row, 2], piece.color)) moves.push([row, col]); // roque longo.   
-
-    console.log("getKingMove ~ moves: ", moves);
 
     return moves;
 };
@@ -1076,8 +1088,6 @@ function getSlidingMoves(position, directions) {
         }
     }
 
-    console.log("getSlidingMoves ~ moves: ", moves);
-
     return moves;
 };
 
@@ -1147,25 +1157,53 @@ function isStalemate(color) {
 };
 
 /**
- * Verifica se o rei da cor especificada está na posição inicial.
- * @param {"white"|"black"} color - Cor do rei.
- * @return {boolean} - Retorna true se o rei estiver na posição inicial.
+ * Retorna a posição inicial de uma peça específica a partir da FEN.
+ * @param {"K"|"k"|"R"|"r"} pieceChar - Caractere da peça na FEN.
+ * @return {[number, number]|null} Posição [linha, coluna] ou null se não encontrado
  */
-const isKingInInitialPosition = (color) => {
-    return GAME_STATE.kingPositions[color][0] === INITIAL_POSITIONS[color][5][0][0] &&
-        GAME_STATE.kingPositions[color][1] === INITIAL_POSITIONS[color][5][0][1];
+function getInitialPositionFromFEN(pieceChar) {
+    for (let r = 0; r < INITIAL_POSITIONS.length; r++) {
+        const row = INITIAL_POSITIONS[r];
+        for (let c = 0; c < 8; c++) {
+            if (row[c] === pieceChar) return [r, c];
+        }
+    }
+    return null;
+};
+
+/**
+ * Verifica se o rei da cor especificada está na posição inicial.
+ * @param {"white"|"black"} color
+ * @return {boolean}
+ */
+function isKingInInitialPosition(color) {
+    const kingChar = color === "white" ? "K" : "k";
+    const initialPos = getInitialPositionFromFEN(kingChar);
+    const [r, c] = GAME_STATE.kingPositions[color];
+    return initialPos && r === initialPos[0] && c === initialPos[1];
 };
 
 /**
  * Verifica se a torre da cor e lado especificados está na posição inicial.
- * @param {"white"|"black"} color - Cor da torre.
- * @param {"kingside"|"queenside"} side - Lado da torre.
- * @return {boolean} - Retorna true se a torre estiver na posição inicial.
+ * @param {"white"|"black"} color
+ * @param {"kingside"|"queenside"} side
+ * @return {boolean}
  */
-const isRookInInitialPosition = (color, side) => {
-    const rookInitialPos = INITIAL_POSITIONS[color][1][side === "kingside" ? 1 : 0];
-    const rookPiece = VIRTUAL_BOARD[rookInitialPos[0]][rookInitialPos[1]];
-    return rookPiece && rookPiece.type === "rook" && rookPiece.color === color;
+function isRookInInitialPosition(color, side) {
+    const rookChar = color === "white" ? "R" : "r";
+    // Pegamos todas as torres
+    const positions = [];
+    for (let r = 0; r < INITIAL_POSITIONS.length; r++) {
+        const row = INITIAL_POSITIONS[r];
+        for (let c = 0; c < 8; c++) {
+            if (row[c] === rookChar) positions.push([r, c]);
+        }
+    }
+    if (positions.length !== 2) return false;
+
+    const rookPos = side === "kingside" ? positions[1] : positions[0];
+    const piece = VIRTUAL_BOARD[rookPos[0]][rookPos[1]];
+    return piece && piece.type === "rook" && piece.color === color;
 };
 
 /**
@@ -1202,15 +1240,20 @@ function isPieceOfColor(position, color) {
 };
 
 /**
- * Retorna a classe CSS para a cor de fundo de uma célula do tabuleiro.
- * @param {number} row Linha da célula (0-7)
- * @param {number} col Coluna da célula (0-7)
- * @return {string} Classe CSS da cor da célula
- * 
- * Sugestão de melhoria no nome: `getBoardCellColor`
+ * Retorna as classes CSS de cor para uma célula do tabuleiro.
+ * - Define a cor de fundo (`bg`) da célula.
+ * - Define a cor de contraste (`text`) para letras e números.
+ *
+ * @param {number} row - Linha da célula (0–7).
+ * @param {number} col - Coluna da célula (0–7).
+ * @returns {{bg: string, text: string}} Objeto com classes CSS para fundo e texto.
  */
-function getBoardCellColor(row, col) {
-    return (row + col) % 2 === 0 ? "bg-[#EBECD0]" : "bg-[#739552]";
+function getBoardCellColors(row, col) {
+    const isLight = (row + col) % 2 === 0;
+    return {
+        bg: isLight ? "bg-[#EBECD0]" : "bg-[#739552]",
+        text: isLight ? "text-[#739552]" : "text-[#EBECD0]"
+    };
 };
 
 // ------------------ VIRTUAL BOARD e ATTACK BOARD
@@ -1269,9 +1312,6 @@ function updateAttackBoardPosition() {
             });
         }
     }
-
-    console.log("🔍 Matriz de ataque atualizada:");
-    console.log(ATTACK_BOARD);
 };
 
 /**
@@ -1284,6 +1324,30 @@ function getPiecePositionOnVirtualBoard(position) {
     if (!isValidBoardPosition(row, col)) return false;
     return VIRTUAL_BOARD[row][col];
 }
+
+// ------------------ FEEDBACK
+const modalBackdrop = document.getElementById('modal-backdrop');
+const modal = document.getElementById('modal');
+
+const setMessage = (message) => {
+    const modalMessage = document.querySelector('.modal-message');
+    modalMessage.textContent = message;
+};
+
+const openModal = (mensagem) => {
+    modalBackdrop.classList.remove('hidden');
+    modal.classList.remove('hidden');
+    setMessage(mensagem);
+};
+
+const closeModal = () => {
+    modalBackdrop.classList.add('hidden')
+    modal.classList.add('hidden');
+};
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+});
 
 // ------------------ TURNOS
 /**
