@@ -21,34 +21,6 @@ let VIRTUAL_BOARD = initializeVirtualBoard();
 let ATTACK_BOARD = initializeAttackBoard();
 
 /**
- * Estado global do jogo de xadrez.
- * 
- * @property {("white"|"black")} currentPlayer - Jogador atual.
- * @property {Object|null} selectedPiece - Peça selecionada no momento.
- * @property {boolean} check - Indica se o rei do jogador atual está em xeque.
- * @property {boolean} checkmate - Indica se o jogador atual está em xeque-mate.
- * @property {Object} kingPositions - Posições atuais dos reis.
- * @property {number[]} kingPositions.white - Posição do rei branco [linha, coluna].
- * @property {number[]} kingPositions.black - Posição do rei preto [linha, coluna].
- * @property {Object|null} lastPawnDoubleMove - Último avanço duplo de peão (para en passant).
- * @property {number[]} enPassantPosition - Casas válidas para captura en passant.
- * @property {Object|null} promotionPending - Promoção pendente de peão (ou null).
- */
-let GAME_STATE = {
-    currentPlayer: "white",
-    selectedPiece: null,
-    check: false,
-    checkmate: false,
-    kingPositions: {
-        white: [7, 4],
-        black: [0, 4]
-    },
-    lastPawnDoubleMove: null,
-    enPassantPosition: [],
-    promotionPending: null,
-};
-
-/**
  * Representação do tabuleiro inicial em FEN expandido.
  * Cada linha é uma string de 8 caracteres:
  * - Maiúsculas = peças brancas
@@ -66,7 +38,6 @@ const INITIAL_POSITIONS = [
     "RNBQKBNR"  // linha 7 (brancas)
 ];
 
-
 /**
  * Definições dos tipos de peças:
  * - name: Nome da peça
@@ -75,12 +46,12 @@ const INITIAL_POSITIONS = [
  * - img: Arquivo de imagem
  */
 const PIECE_TYPES = {
-    PAWN: { name: "Pawn", type: "pawn", symbol: "♟", img: "p.png" },
-    ROOK: { name: "Rook", type: "rook", symbol: "♜", img: "r.png" },
-    KNIGHT: { name: "Knight", type: "knight", symbol: "♞", img: "n.png" },
-    BISHOP: { name: "Bishop", type: "bishop", symbol: "♝", img: "b.png" },
-    QUEEN: { name: "Queen", type: "queen", symbol: "♕", img: "q.png" },
-    KING: { name: "King", type: "king", symbol: "♚", img: "k.png" }
+    PAWN: { name: "Peão", type: "pawn", symbol: "♟", img: "p.png" },
+    ROOK: { name: "Torre", type: "rook", symbol: "♜", img: "r.png" },
+    KNIGHT: { name: "Cavalo", type: "knight", symbol: "♞", img: "n.png" },
+    BISHOP: { name: "Bispo", type: "bishop", symbol: "♝", img: "b.png" },
+    QUEEN: { name: "Rainha", type: "queen", symbol: "♕", img: "q.png" },
+    KING: { name: "Rei", type: "king", symbol: "♚", img: "k.png" }
 };
 
 /**
@@ -97,6 +68,7 @@ let SHOW_HIGHLIGHT = true;
 function startGame() {
     createBoard();
     addPieces(INITIAL_POSITIONS);
+    updateTurnInUI();
 };
 
 /**
@@ -136,65 +108,127 @@ function createBoard() {
 
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
-            const cell = document.createElement("div");
-            const { bg, text } = getBoardCellColors(row, col);
-
-            cell.classList.add(
-                "relative",
-                "w-full",
-                "h-full",
-                "flex",
-                "flex-col",
-                "justify-center",
-                "items-center",
-                "cell",
-                bg,
-                text
-            );
-            cell.dataset.position = [row, col];
-            cell.dataset.id = `${letters[col]}${8 - row}`;
-
-            let coordnates = document.createElement("span");
-            coordnates.textContent = `[${row}, ${col}]`;
-            coordnates.classList.add("absolute", "top-1", "text-[0.4rem]", "sm:text-[0.6rem]", text);
-
-            cell.appendChild(coordnates);
-
-            if (row === 7) {
-                const letter = document.createElement("span");
-                letter.textContent = letters[col];
-                letter.classList.add(
-                    "absolute",
-                    "text-[0.5rem]",
-                    "sm:text-[0.9rem]",
-                    "right-1",
-                    "bottom-1",
-                    text
-                );
-                cell.appendChild(letter);
-            }
-
-            if (col === 0) {
-                const number = document.createElement("span");
-                number.textContent = 8 - row;
-                number.classList.add(
-                    "absolute",
-                    "text-[0.5rem]",
-                    "sm:text-[0.7rem]",
-                    "left-1",
-                    "top-1",
-                    text
-                );
-                cell.appendChild(number);
-            }
-
-            cell.addEventListener("click", (e) => {
-                e.stopPropagation();
-                cellClicked(e, [row, col]);
-            });
-
+            const cell = createCell(row, col, letters);
             board.appendChild(cell);
         }
+    }
+};
+
+/**
+ * Cria uma célula do tabuleiro de xadrez no DOM.
+ * - Define a cor de fundo e contraste com `getBoardCellColors`.
+ * - Adiciona identificadores como [row,col] e notação de xadrez (a1..h8).
+ * - Inclui rótulos de letras (a–h) e números (1–8) nas bordas.
+ * - Conecta cada célula ao evento `cellClicked`.
+ * 
+ * @param {number} row - Linha da célula (0–7).
+ * @param {number} col - Coluna da célula (0–7).
+ * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
+ * @returns {HTMLDivElement} Célula do tabuleiro criada.
+*/
+function createCell(row, col, letters) {
+    const cell = document.createElement("div");
+    const { bg, text } = getBoardCellColors(row, col);
+
+    cell.classList.add(
+        "relative", "w-full", "h-full", "flex", "flex-col",
+        "justify-center", "items-center", "cell", bg, text
+    );
+    cell.dataset.position = [row, col];
+    cell.dataset.id = `${letters[col]}${8 - row}`;
+
+    showCellCoordinates(cell, row, col, text);
+    addLettersToCell(cell, row, col, letters, text);
+    addNumberToCell(cell, row, col, letters, text);
+
+    cell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cellClicked(e, [row, col]);
+    });
+
+    return cell;
+};
+
+/**
+ * Exibe as coordenadas (linha, coluna) da célula no canto superior esquerdo.
+ * - Cria um elemento <span> com o texto em formato [linha, coluna]
+ * - Adiciona classes CSS para posicionar o elemento no canto superior esquerdo e definir o tamanho da fonte.
+ * - Adiciona o elemento à célula.
+ * 
+ * @param {HTMLDivElement} cell - Célula do tabuleiro.
+ * @param {number} row - Linha da célula (0–7).
+ * @param {number} col - Coluna da célula (0–7).
+ * @param {string} text - Classe CSS para definir a cor do texto.
+ * @returns {void}
+ */
+function showCellCoordinates(cell, row, col, text) {
+    const coord = document.createElement("span");
+    coord.textContent = `[${row}, ${col}]`;
+    coord.classList.add(
+        "absolute", 
+        "top-1", 
+        "text-[0.4rem]", 
+        "sm:text-[0.6rem]", 
+        text
+    );
+    cell.appendChild(coord);
+};
+
+/**
+ * Adiciona uma letra à célula no canto inferior direito se a linha for 7.
+ * - Cria um elemento <span> com o texto em formato [letra]
+ * - Adiciona classes CSS para posicionar o elemento no canto inferior direito e definir o tamanho da fonte.
+ * - Adiciona o elemento à célula.
+ * 
+ * @param {HTMLDivElement} cell - Célula do tabuleiro.
+ * @param {number} row - Linha da célula (0–7).
+ * @param {number} col - Coluna da célula (0–7).
+ * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
+ * @param {string} text - Classe CSS para definir a cor do texto.
+ * @returns {void}
+ */
+function addLettersToCell(cell, row, col, letters, text) {
+    if (row === 7) {
+        const letter = document.createElement("span");
+        letter.textContent = letters[col];
+        letter.classList.add(
+            "absolute", 
+            "text-[0.5rem]", 
+            "sm:text-[0.9rem]", 
+            "right-1", 
+            "bottom-1", 
+            text
+        );
+        cell.appendChild(letter);
+    }
+};
+
+/**
+ * Adiciona um número à célula no canto esquerdo superior se a coluna for 0.
+ * - Cria um elemento <span> com o texto em formato [número]
+ * - Adiciona classes CSS para posicionar o elemento no canto esquerdo superior e definir o tamanho da fonte.
+ * - Adiciona o elemento à célula.
+ * 
+ * @param {HTMLDivElement} cell - Célula do tabuleiro.
+ * @param {number} row - Linha da célula (0–7).
+ * @param {number} col - Coluna da célula (0–7).
+ * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
+ * @param {string} text - Classe CSS para definir a cor do texto.
+ * @returns {void}
+*/
+function addNumberToCell(cell, row, col, letters, text) {
+    if (col === 0) {
+        const number = document.createElement("span");
+        number.textContent = 8 - row;
+        number.classList.add(
+            "absolute", 
+            "text-[0.5rem]", 
+            "sm:text-[0.7rem]", 
+            "left-1", 
+            "top-1", 
+            text
+        );
+        cell.appendChild(number);
     }
 };
 
@@ -266,9 +300,9 @@ function addPieces(INITIAL_POSITIONS) {
                     "bottom-0",
                     "flex",
                     "w-[3rem]",
-                    "sm:w-[4rem]",
+                    "sm:w-[3.5rem]",
                     "h-[3rem]",
-                    "sm:h-[4rem]",
+                    "sm:h-[3.5rem]",
                     "object-contain",
                     "cursor-grab",
                     "active:cursor-grabbing"
@@ -298,62 +332,72 @@ function addPieces(INITIAL_POSITIONS) {
  * @param {Array<number>} position - Posição da célula clicada [row, col].
  */
 function cellClicked(event, position) {
+    event.stopPropagation();
     const clickedPiece = getPiecePositionOnVirtualBoard(position);
+    const selectedPiece = GameState.get("selectedPiece");
+    const currentPlayer = GameState.get("currentPlayer");
 
-    if (!clickedPiece && !GAME_STATE.selectedPiece) {
-        openModal(`ℹ️ Nenhuma peça encontrada na posição clicada: ${position.join(",")}`);
+    if (!clickedPiece && !selectedPiece) {
+        openModal(`ℹ️ Nenhuma peça encontrada na posição clicada: ${position}`);
         return;
     }
 
-    if (clickedPiece && clickedPiece.color === GAME_STATE.currentPlayer) {
-        GAME_STATE.selectedPiece = clickedPiece;
+    if (clickedPiece && clickedPiece.color === currentPlayer) {
+        GameState.set({ selectedPiece: clickedPiece });
         highlightMovesForPiece(clickedPiece, position, VIRTUAL_BOARD);
         highlightSelectedCell(position);
         return;
     }
 
-    if (GAME_STATE.selectedPiece) {
-        const fromPosition = GAME_STATE.selectedPiece.positions[0];
+    // Movimento de peça selecionada
+    if (selectedPiece) {
+        const fromPosition = selectedPiece.positions[0];
+        const toPosition = position;
 
-        // Detecta se é roque
-        if (
-            GAME_STATE.selectedPiece.type === "king" && 
-            Math.abs(position[1] - fromPosition[1]) === 2
-        ) {
-            executeCastle(fromPosition, position, GAME_STATE.selectedPiece.color);
-            return;
+        // --- Tentativa de roque ---
+        if (selectedPiece.type === "king" && isKingInInitialPosition(selectedPiece.color)) {
+            const isCastlingAttempt = Math.abs(toPosition[1] - fromPosition[1]) === 2;
+
+            if (isCastlingAttempt) {
+                if (canCastle(fromPosition, toPosition, selectedPiece.color)) {
+                    executeCastle(fromPosition, toPosition, selectedPiece.color);
+                } else {
+                    openModal("❌ Roque inválido!");
+                }
+                return;
+            }
         }
 
-        // Movimento normal
-        movePieceInVirtualBoard(fromPosition, position);
+        // --- Movimento normal ---
+        movePieceInVirtualBoard(fromPosition, toPosition);
     }
 };
 
+
 /**
- * Move uma peça do tabuleiro virtual e atualiza o estado do jogo.
- * - Valida se existe uma peça na posição de origem.
- * - Verifica se o movimento é permitido pela regra do xadrez.
- * - Confirma se o movimento não deixa o rei do jogador em xeque.
- * - Executa o movimento e atualiza o DOM e o tabuleiro virtual.
- * - Verifica se o movimento coloca o rei adversário em xeque.
+ * Move uma peça no tabuleiro virtual.
  *
- * @param {Array<number>} fromPosition - Posição inicial da peça [row, col].
- * @param {Array<number>} toPosition - Posição de destino da peça [row, col].
- * @returns {boolean} - Retorna true se o movimento foi realizado com sucesso; false caso contrário.
+ * @param {number[]} fromPosition - Posição atual da peça [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino da peça [linha, coluna].
+ * @param {Object} piece - Peça a ser movida.
+ *
+ * @returns {boolean} Retorna true se o movimento for válido, false caso contrário.
  */
+
 function movePieceInVirtualBoard(fromPosition, toPosition) {
     const piece = getPiecePositionOnVirtualBoard(fromPosition);
+    const currentPlayer = GameState.get("currentPlayer");
 
     if (!piece) return false;
 
     const isValidMove = isValidateMove(fromPosition, toPosition, piece);
 
     if (!isValidMove) {
-        openModal(`⛔${piece.symbol} Movimento ilegal!`);
+        openModal(`⛔${piece.symbol}(${piece.name}) Movimento ilegal para!`);
         return;
     }
 
-    if (!isMoveSafe(fromPosition, toPosition, GAME_STATE.currentPlayer)) {
+    if (!isMoveSafe(fromPosition, toPosition, currentPlayer)) {
         openModal(`⛔${piece.symbol} Movimento ilegal! Seu rei ficaria em xeque.`);
 
         clearSelectedPiece();
@@ -369,56 +413,64 @@ function movePieceInVirtualBoard(fromPosition, toPosition) {
         openModal(`🚨 Xeque no rei ${opponentColor}!`)
     }
 
-    logVirtualBoard();
     return true;
 };
 
 /**
- * Executa o movimento de uma peça no tabuleiro.
- * - Atualiza movimentos especiais como "en passant" e "último movimento de peão duplo".
- * - Remove peças adversárias na posição de destino, se houver.
- * - Atualiza o DOM para refletir o movimento da peça.
- * - Atualiza o tabuleiro virtual (VIRTUAL_BOARD) com a nova posição da peça.
- * - Atualiza as possíveis casas de movimento da peça.
- * - Limpa a peça selecionada e alterna a vez do jogador.
+ * Executa um movimento de uma peça no tabuleiro.
+ * - Regras de movimento: atualiza variáveis de movimento (ex: lastPawnDoubleMove),
+ *   captura peças oponentes se necessário e remove peão en passant.
+ * - Atualiza DOM: move a imagem da peça no tabuleiro.
+ * - Atualiza tabuleiro virtual: move a peça no tabuleiro virtual.
+ * - Atualiza posição do rei.
+ * - UI e controle de jogo: limpa destaques de movimento, limpa peça selecionada,
+ *   alterna jogador atual e escreve o tabuleiro virtual no console.
  *
- * @param {Array<number>} fromPosition - Posição inicial da peça [row, col].
- * @param {Array<number>} toPosition - Posição final da peça [row, col].
- * @param {Object} piece - Objeto da peça que está sendo movida.
- * @returns {void}
+ * @param {number[]} fromPosition - Posição atual da peça [linha, coluna].
+ * @param {number[]} toPosition - Posição de destino da peça [linha, coluna].
+ * @param {Object} piece - Peça a ser movida.
  */
 function executeMove(fromPosition, toPosition, piece) {
     const fromCell = document.querySelector(`[data-position="${fromPosition.join(",")}"]`);
     const toCell = document.querySelector(`[data-position="${toPosition.join(",")}"]`);
 
+    // 1. Regras de movimento
     setLastPawnDoubleMove(fromPosition, toPosition, piece);
     captureOpponentPiecesIfExists(toCell);
     removePawnEnPassant(toPosition);
-    movePieceElement(fromCell, toCell, toPosition, piece);
+
+    // 2. Atualiza DOM
+    movePieceElement(fromCell, toCell);
+
+    // 3. Atualiza tabuleiro virtual
     updateVirutualBoardPosition(fromPosition, toPosition, piece);
+
+    // 4. Atualiza posição do rei.
+    setKingPosition(piece, toPosition);
+
+    // 5. UI e controle de jogo
     clearMoveHighlights();
     clearSelectedPiece();
     toggleCurrentPlayer();
+
+    // logVirtualBoard();
+    console.log("🚀 ~ executeMove " ,GameState.getState());
 };
 
 /**
  * Move a peça no DOM de uma célula para outra.
  * - Remove a imagem da peça da célula de origem.
- * - Adiciona a imagem da peça na célula de destino.
- * - Remove quaisquer destaques de possíveis movimentos no tabuleiro.
+ * - Adiciona a imagem na célula de destino.
  *
- * @param {HTMLElement} fromCell - Célula de origem da peça.
- * @param {HTMLElement} toCell - Célula de destino da peça.
- * @param {Array<number>} toPosition - Posição final da peça [row, col].
- * @param {Object} piece - Objeto da peça que está sendo movida.
- * @returns {void}
+ * @param {HTMLElement} fromCell - Célula de origem.
+ * @param {HTMLElement} toCell - Célula de destino.
  */
 function movePieceElement(fromCell, toCell) {
-    const pieceImg = fromCell.querySelector('img');
+    const pieceImg = fromCell.querySelector("img");
+    if (!pieceImg) return;
+
     fromCell.removeChild(pieceImg);
     toCell.appendChild(pieceImg);
-
-    clearMoveHighlights();
 };
 
 /**
@@ -509,7 +561,7 @@ function highlightSelectedCell(position) {
  * @returns {void}
  */
 function clearSelectedPiece() {
-    GAME_STATE.selectedPiece = null;
+    GameState.set({ selectedPiece: null });
 };
 
 /**
@@ -630,16 +682,17 @@ function isValidateMove(fromPosition, toPosition, piece) {
  *
  * @param {number[]} fromPosition - Posição inicial [linha, coluna] da peça.
  * @param {number[]} toPosition - Posição de destino [linha, coluna].
- * @param {string} player - Cor do jogador ("white" ou "black").
+ * @param {string} color - Cor do jogador ("white" ou "black").
  * @returns {boolean} Retorna true se o movimento não deixar o rei em xeque, false caso contrário.
  */
-function isMoveSafe(fromPosition, toPosition, player) {
+function isMoveSafe(fromPosition, toPosition, color) {
     const [fromRow, fromCol] = fromPosition;
     const [toRow, toCol] = toPosition;
 
     // Salva o estado original
     const originalPiece = VIRTUAL_BOARD[fromRow][fromCol];
     const capturedPiece = VIRTUAL_BOARD[toRow][toCol]; // Pode ser null
+    const originalKingPosition = GameState.get(`kingPositions.${color}`).slice();
 
     // Simula o movimento
     VIRTUAL_BOARD[fromRow][fromCol] = null;
@@ -647,21 +700,25 @@ function isMoveSafe(fromPosition, toPosition, player) {
 
     // Se for o rei, atualiza a posição temporária
     if (originalPiece.type === "king") {
-        GAME_STATE.kingPositions[player] = [toRow, toCol];
+        const newKingPositions = { ...GameState.get("kingPositions") };
+        newKingPositions[color] = [toRow, toCol];
+        GameState.set({ kingPositions: newKingPositions });
     }
 
     // Atualiza a matriz de ataque para a nova configuração do tabuleiro
     updateAttackBoardPosition();
 
     // Verifica se o próprio rei está em xeque
-    const kingIsInCheck = isKingInCheck(player);
+    const kingIsInCheck = isKingInCheck(color);
 
     // Restaura o estado original
     VIRTUAL_BOARD[fromRow][fromCol] = originalPiece;
     VIRTUAL_BOARD[toRow][toCol] = capturedPiece;
 
     if (originalPiece.type === "king") {
-        GAME_STATE.kingPositions[player] = [fromRow, fromCol];
+        const restoredKingPositions = { ...GameState.get("kingPositions") };
+        restoredKingPositions[color] = originalKingPosition;
+        GameState.set({ kingPositions: restoredKingPositions });
     }
 
     // Retorna `false` se o movimento colocar o rei em xeque
@@ -733,6 +790,8 @@ function getPawnMove(position) {
 function canEnPassant(fromPosition) {
     const [row, col] = fromPosition;
     const pawn = getPiecePositionOnVirtualBoard(fromPosition);
+    const lastPawnDoubleMove = GameState.get('lastPawnDoubleMove');
+    const enPassantPosition = GameState.get('enPassantPosition');
 
     if (!pawn || pawn.type !== 'pawn') return [];
 
@@ -751,14 +810,14 @@ function canEnPassant(fromPosition) {
             if (adjacentPawn && adjacentPawn.type === 'pawn' && adjacentPawn.color !== pawn.color) {
                 // Verificar se o peão adversário está em lastPawnDoubleMove
                 if (
-                    GAME_STATE.lastPawnDoubleMove &&
-                    GAME_STATE.lastPawnDoubleMove.positions.some(([r, c]) => r === row && c === adjCol)
+                    lastPawnDoubleMove &&
+                    lastPawnDoubleMove.positions.some(([r, c]) => r === row && c === adjCol)
                 ) {
                     const diagonalRow = row + direction;
                     const diagonalCol = adjCol;
                     if (!hasPieceAtPosition([diagonalRow, diagonalCol])) {
                         enPassantMoves.push([diagonalRow, diagonalCol]);
-                        GAME_STATE.enPassantPosition = [diagonalRow, diagonalCol];
+                        GameState.set('enPassantPosition', [diagonalRow, diagonalCol]);
                     }
                 }
             }
@@ -774,11 +833,14 @@ function canEnPassant(fromPosition) {
  * @param {number[]} toPosition - Posição de destino do peão que realizou o en passant [linha, coluna].
  */
 function removePawnEnPassant(toPosition) {
-    if (!GAME_STATE.lastPawnDoubleMove) return;
+    const lastPawnDoubleMove = GameState.get('lastPawnDoubleMove');
+    const enPassantPosition = GameState.get('enPassantPosition');
+
+    if (!lastPawnDoubleMove) return;
 
     const [toRow, toCol] = toPosition;
-    const [emPassantRow, emPassantCol] = GAME_STATE.enPassantPosition;
-    const existPawnEnPassant = GAME_STATE.lastPawnDoubleMove;
+    const [emPassantRow, emPassantCol] = enPassantPosition;
+    const existPawnEnPassant = lastPawnDoubleMove;
 
     if (existPawnEnPassant && toRow === emPassantRow && toCol === emPassantCol) {
         const emPassantCellSelector = `[data-position="${existPawnEnPassant.positions.join(",")}"]`;
@@ -800,21 +862,25 @@ function removePawnEnPassant(toPosition) {
  * @param {Object} piece - Objeto representando o peão que se moveu.
  */
 function setLastPawnDoubleMove(fromPosition, toPosition, piece) {
-
     if (piece.type !== "pawn") return;
 
     const [row, col] = fromPosition;
     const [toRow, toCol] = toPosition;
     const { name, color, positions } = piece;
-    const direction = color === 'white' ? -1 : 1;
     const initialRow = color === 'white' ? 6 : 1;
 
     if (row === initialRow && Math.abs(toRow - row) === 2 && col === toCol) {
-        GAME_STATE.lastPawnDoubleMove = {
-            name,
-            color,
-            positions: [[toRow, toCol]]
-        };
+        GameState.set({
+            lastPawnDoubleMove: {
+                name,
+                color,
+                positions: [[toRow, toCol]]
+            }
+        });
+        GameState.set({ enPassantPosition: [toRow, toCol] });
+    } else {
+        // Se não for duplo, limpa o último movimento duplo
+        GameState.set({ lastPawnDoubleMove: null });
     }
 };
 
@@ -983,8 +1049,8 @@ function getKingMove(position) {
     });
 
     // --- Verificar roque ---
-    if (canCastle(position, [row, 6], piece.color)) moves.push([row, col]); // roque curto.
-    if (canCastle(position, [row, 2], piece.color)) moves.push([row, col]); // roque longo.   
+    if (canCastle(position, [row, 6], piece.color)) moves.push([row, 6]); // roque curto.
+    if (canCastle(position, [row, 2], piece.color)) moves.push([row, 2]); // roque longo.   
 
     return moves;
 };
@@ -1058,9 +1124,12 @@ function executeCastle(fromPosition, toPosition, color) {
     movePieceInDOMByPosition([row, rookColFrom], [row, rookColTo]);
 
     // Atualiza posição do rei
-    GAME_STATE.kingPositions[color] = [row, toPosition[1]];
+    const newKingPositions = { ...GameState.get("kingPositions") };
+    newKingPositions[color] = [row, toPosition[1]];
+    GameState.set({ kingPositions: newKingPositions });
 
     clearSelectedPiece();
+    clearMoveHighlights();
     toggleCurrentPlayer();
 };
 
@@ -1099,7 +1168,7 @@ function getSlidingMoves(position, directions) {
  * @return {boolean} - Retorna `true` se o rei estiver em xeque, `false` caso contrário.
  */
 function isKingInCheck(color) {
-    const [kr, kc] = GAME_STATE.kingPositions[color];
+    const [kr, kc] = GameState.get("kingPositions")[color];
     const opponent = color === "white" ? "black" : "white";
     return ATTACK_BOARD[kr][kc].has(opponent);
 };
@@ -1113,7 +1182,7 @@ function isKingInCheck(color) {
 function isCheckmate(color) {
     if (!isKingInCheck(color)) return false;
 
-    const kingPosition = GAME_STATE.kingPositions[color];
+    const kingPosition = GameState.get("kingPositions")[color];
     const kingMoves = getKingMove(kingPosition);
 
     // Verifica se o rei tem movimentos seguros
@@ -1178,10 +1247,25 @@ function getInitialPositionFromFEN(pieceChar) {
  */
 function isKingInInitialPosition(color) {
     const kingChar = color === "white" ? "K" : "k";
-    const initialPos = getInitialPositionFromFEN(kingChar);
-    const [r, c] = GAME_STATE.kingPositions[color];
-    return initialPos && r === initialPos[0] && c === initialPos[1];
+    const initialPositionKing = getInitialPositionFromFEN(kingChar);
+    const kingPosition = GameState.get("kingPositions")[color];
+    return initialPositionKing[0] === kingPosition[0] && initialPositionKing[1] === kingPosition[1];
 };
+
+/**
+ * Atualiza a posição do rei de uma cor no estado do jogo.
+ *
+ * @param {"white"|"black"} color - Cor do rei a ser atualizado.
+ * @param {[number, number]} position - Nova posição do rei [linha, coluna].
+ */
+function setKingPosition(piece, position) {
+    const { color, type } = piece;
+    if (type !== "king") return;
+
+    const newKingPositions = { ...GameState.get("kingPositions") };
+    newKingPositions[color] = position;
+    GameState.set({ kingPositions: newKingPositions });
+}
 
 /**
  * Verifica se a torre da cor e lado especificados está na posição inicial.
@@ -1264,13 +1348,11 @@ function getBoardCellColors(row, col) {
  * 
  */
 function logVirtualBoard() {
-    console.log("🔍 Matriz de jogadas atualizada:");
-    console.log(VIRTUAL_BOARD);
+    console.log("🔍 Matriz de jogadas atualizada:", VIRTUAL_BOARD);
 };
 
 /**
  * Atualiza o tabuleiro virtual de posições após um movimento de peça.
- * Também atualiza a posição do rei, se a peça movida for o rei.
  * @param {number[]} fromPosition - Posição inicial [linha, coluna].
  * @param {number[]} toPosition - Posição de destino [linha, coluna].
  * @param {Object} piece - Objeto da peça que está sendo movida.
@@ -1280,9 +1362,6 @@ function logVirtualBoard() {
 function updateVirutualBoardPosition(fromPosition, toPosition, piece) {
     const [fromRow, fromCol] = fromPosition;
     const [toRow, toCol] = toPosition;
-    if (piece.type === "king") {
-        GAME_STATE.kingPositions[piece.color] = [toRow, toCol];
-    }
     VIRTUAL_BOARD[fromRow][fromCol] = null;
     VIRTUAL_BOARD[toRow][toCol] = piece;
     piece.positions = [[toRow, toCol]];
@@ -1345,6 +1424,13 @@ const closeModal = () => {
     modal.classList.add('hidden');
 };
 
+const updateTurnInUI = () => {
+    const currentPlayer = GameState.get("currentPlayer");
+    const turnoEl = document.getElementById('turno');
+    turnoEl.textContent = `${currentPlayer === "white" ? "⚪ Brancas" : "⚫ Pretas"
+        }`;
+};
+
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
 });
@@ -1352,16 +1438,131 @@ window.addEventListener('keydown', (e) => {
 // ------------------ TURNOS
 /**
  * Alterna o turno do jogador atual entre "white" e "black".
- * Atualiza GAME_STATE.currentPlayer.
+ * Atualiza o estado do jogo para o novo turno.
  * @return {void}
  *
  */
 function toggleCurrentPlayer() {
-    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer === "white" ? "black" : "white";
-    console.log(`Turno do jogador: ${GAME_STATE.currentPlayer}`);
-
-    // Verifica se o jogo terminou em xeque-mate ou empate
+    GameState.set({
+        currentPlayer: GameState.get("currentPlayer") === "white"
+            ? "black"
+            : "white"
+    });
+    updateTurnInUI();
 };
+
+// ------------------ GAME STATE
+/**
+ * @module GameState
+ * 
+ * Store de estado global para o jogo de xadrez.
+ * Permite manipular e acessar o estado de forma encapsulada, 
+ * sem acessar a variável global diretamente.
+ * 
+ * Funcionalidades:
+ * - getState(): retorna o estado completo
+ * - get(path): retorna uma propriedade específica (suporta paths aninhados)
+ * - set(updates): atualiza propriedades do estado
+ * - reset(): reinicia o estado para valores iniciais
+ * - subscribe(fn): registra callbacks para mudanças de estado
+ * 
+ * Exemplo de uso:
+ * const currentPlayer = GameState.get("currentPlayer");
+ * GameState.set({ check: true });
+ * const unsubscribe = GameState.subscribe(state => console.log(state));
+ * GameState.reset();
+ * unsubscribe();
+ */
+const GameState = (function () {
+    // Estado interno
+    let state = {
+        currentPlayer: "white",
+        selectedPiece: null,
+        check: false,
+        checkmate: false,
+        kingPositions: {
+            white: [7, 4],
+            black: [0, 4]
+        },
+        lastPawnDoubleMove: null,
+        enPassantPosition: [],
+        promotionPending: null,
+    };
+
+    // Lista de listeners para mudanças de estado
+    const listeners = [];
+
+    return {
+        // Retorna o estado completo
+        getState: () => ({ ...state }),
+
+        // Retorna propriedade específica (suporta paths aninhados)
+        get: (path) => {
+            const keys = path.split(".");
+            return keys.reduce((acc, key) => (acc ? acc[key] : undefined), state);
+        },
+
+        // Atualiza o estado (merge) e notifica listeners
+        set: (updates) => {
+            state = { ...state, ...updates };
+            listeners.forEach((fn) => fn(state));
+        },
+
+        // Resetar estado inicial
+        reset: () => {
+            state = {
+                currentPlayer: "white",
+                selectedPiece: null,
+                check: false,
+                checkmate: false,
+                kingPositions: {
+                    white: [7, 4],
+                    black: [0, 4]
+                },
+                lastPawnDoubleMove: null,
+                enPassantPosition: [],
+                promotionPending: null,
+            };
+            listeners.forEach((fn) => fn(state));
+        },
+
+        // Registrar callback para mudanças de estado
+        subscribe: (fn) => {
+            listeners.push(fn);
+            // Retorna função para remover o listener
+            return () => {
+                const index = listeners.indexOf(fn);
+                if (index > -1) listeners.splice(index, 1);
+            };
+        }
+    };
+})();
+
+
+// ------------------ RESTART
+/**
+ * Reinicia o jogo de xadrez, limpando o tabuleiro e restaurando o estado inicial.
+ * - Limpa todas as peças do DOM
+ * - Reinicializa as variáveis de estado
+ * - Recria o tabuleiro com as peças na posição inicial
+ */
+function restartGame() {
+    // Limpar o tabuleiro visualmente (remover todas as peças)
+    document.getElementById("board").innerHTML = "";
+
+    // Reinicializar as variáveis de estado do jogo
+    VIRTUAL_BOARD = initializeVirtualBoard();
+    ATTACK_BOARD = initializeAttackBoard();
+
+    // Limpar o estado do jogo
+    GameState.reset();
+
+    // Reiniciar o jogo
+    startGame();
+}
+
+const restartButton = document.getElementById('restart-button');
+restartButton.addEventListener('click', () => restartGame());
 
 // ----------------- INICIAR JOGO
 startGame();
