@@ -165,10 +165,10 @@ function showCellCoordinates(cell, row, col, text) {
     const coord = document.createElement("span");
     coord.textContent = `[${row}, ${col}]`;
     coord.classList.add(
-        "absolute", 
-        "top-1", 
-        "text-[0.4rem]", 
-        "sm:text-[0.6rem]", 
+        "absolute",
+        "top-1",
+        "text-[0.4rem]",
+        "sm:text-[0.6rem]",
         text
     );
     cell.appendChild(coord);
@@ -192,11 +192,11 @@ function addLettersToCell(cell, row, col, letters, text) {
         const letter = document.createElement("span");
         letter.textContent = letters[col];
         letter.classList.add(
-            "absolute", 
-            "text-[0.5rem]", 
-            "sm:text-[0.9rem]", 
-            "right-1", 
-            "bottom-1", 
+            "absolute",
+            "text-[0.5rem]",
+            "sm:text-[0.9rem]",
+            "right-1",
+            "bottom-1",
             text
         );
         cell.appendChild(letter);
@@ -221,11 +221,11 @@ function addNumberToCell(cell, row, col, letters, text) {
         const number = document.createElement("span");
         number.textContent = 8 - row;
         number.classList.add(
-            "absolute", 
-            "text-[0.5rem]", 
-            "sm:text-[0.7rem]", 
-            "left-1", 
-            "top-1", 
+            "absolute",
+            "text-[0.5rem]",
+            "sm:text-[0.7rem]",
+            "left-1",
+            "top-1",
             text
         );
         cell.appendChild(number);
@@ -344,7 +344,7 @@ function cellClicked(event, position) {
 
     if (clickedPiece && clickedPiece.color === currentPlayer) {
         GameState.set({ selectedPiece: clickedPiece });
-        highlightMovesForPiece(clickedPiece, position, VIRTUAL_BOARD);
+        highlightMovesForPiece(clickedPiece, position);
         highlightSelectedCell(position);
         return;
     }
@@ -437,7 +437,16 @@ function executeMove(fromPosition, toPosition, piece) {
     // 1. Regras de movimento
     setLastPawnDoubleMove(fromPosition, toPosition, piece);
     captureOpponentPiecesIfExists(toCell);
-    removePawnEnPassant(toPosition);
+
+    if (piece.type === 'pawn') {
+        // Verifica se o destino é um movimento de en passant
+        const enPassantMoves = canEnPassant(fromPosition);
+        if (enPassantMoves
+            .some(([r, c]) => r === toPosition[0] && c === toPosition[1])
+        ) {
+            removePawnEnPassant(toPosition); // Remove peão adversário
+        }
+    }
 
     // 2. Atualiza DOM
     movePieceElement(fromCell, toCell);
@@ -454,7 +463,8 @@ function executeMove(fromPosition, toPosition, piece) {
     toggleCurrentPlayer();
 
     // logVirtualBoard();
-    console.log("🚀 ~ executeMove " ,GameState.getState());
+    console.log("🚀 ~ executeMove ", GameState.getState());
+    console.log("🚀 ~ executeMove ", VIRTUAL_BOARD);
 };
 
 /**
@@ -489,15 +499,14 @@ function captureOpponentPiecesIfExists(toCell) {
  *
  * @param {Object} piece - Objeto da peça a ser movida.
  * @param {number[]} position - Posição atual da peça [linha, coluna].
- * @param {Array} board - Tabuleiro virtual usado para cálculos de movimento.
  * @returns {void}
  */
-function highlightMovesForPiece(piece, position, board) {
+function highlightMovesForPiece(piece, position) {
     if (!SHOW_HIGHLIGHT) return;
 
     const newPossibleMoves = getPossibleMoves(position, piece);
 
-    clearMoveHighlights(newPossibleMoves, board);
+    clearMoveHighlights();
 
     newPossibleMoves.forEach((move) => {
         const cell = document.querySelector(`[data-position="${move.join(",")}"]`);
@@ -734,8 +743,7 @@ function isMoveSafe(fromPosition, toPosition, color) {
 function movePieceInDOMByPosition(fromPos, toPos) {
     const fromCell = document.querySelector(`[data-position="${fromPos.join(",")}"]`);
     const toCell = document.querySelector(`[data-position="${toPos.join(",")}"]`);
-    const piece = getPiecePositionOnVirtualBoard(toPos);
-    movePieceElement(fromCell, toCell, toPos, piece);
+    movePieceElement(fromCell, toCell);
 };
 
 // ----------------- FUNÇÕES DE MOVIMENTO
@@ -788,43 +796,37 @@ function getPawnMove(position) {
  * @returns {number[][]} Lista de posições válidas para en passant.
  */
 function canEnPassant(fromPosition) {
-    const [row, col] = fromPosition;
     const pawn = getPiecePositionOnVirtualBoard(fromPosition);
-    const lastPawnDoubleMove = GameState.get('lastPawnDoubleMove');
-    const enPassantPosition = GameState.get('enPassantPosition');
-
     if (!pawn || pawn.type !== 'pawn') return [];
 
-    const isWhite = pawn.color === 'white';
-    const direction = isWhite ? -1 : 1;
-    const enPassantRow = isWhite ? 3 : 4;
+    const lastPawnDoubleMove = GameState.get('lastPawnDoubleMove');
+    if (!lastPawnDoubleMove) return [];
 
+    const [row, col] = fromPosition;
+    const direction = pawn.color === 'white' ? -1 : 1;
+    const enPassantRow = pawn.color === 'white' ? 3 : 4;
     if (row !== enPassantRow) return [];
 
-    const enPassantMoves = [];
-    const adjacentColumns = [col - 1, col + 1]; // Colunas adjacentes
+    const moves = [];
 
-    adjacentColumns.forEach(adjCol => {
-        if (isValidBoardPosition(row, adjCol)) {
-            const adjacentPawn = getPiecePositionOnVirtualBoard([row, adjCol]);
-            if (adjacentPawn && adjacentPawn.type === 'pawn' && adjacentPawn.color !== pawn.color) {
-                // Verificar se o peão adversário está em lastPawnDoubleMove
-                if (
-                    lastPawnDoubleMove &&
-                    lastPawnDoubleMove.positions.some(([r, c]) => r === row && c === adjCol)
-                ) {
-                    const diagonalRow = row + direction;
-                    const diagonalCol = adjCol;
-                    if (!hasPieceAtPosition([diagonalRow, diagonalCol])) {
-                        enPassantMoves.push([diagonalRow, diagonalCol]);
-                        GameState.set('enPassantPosition', [diagonalRow, diagonalCol]);
-                    }
-                }
-            }
+    // Colunas adjacentes
+    [col - 1, col + 1].forEach(adjCol => {
+        if (!isValidBoardPosition(row, adjCol)) return;
+        const adjacentPawn = getPiecePositionOnVirtualBoard([row, adjCol]);
+        if (
+            adjacentPawn &&
+            adjacentPawn.type === 'pawn' &&
+            adjacentPawn.color !== pawn.color &&
+            lastPawnDoubleMove.positions.some(([r, c]) => r === row && c === adjCol)
+        ) {
+            // Casa de destino da captura
+            const destRow = row + direction;
+            const destCol = adjCol;
+            moves.push([destRow, destCol]);
         }
     });
 
-    return enPassantMoves;
+    return moves;
 };
 
 /**
@@ -833,23 +835,36 @@ function canEnPassant(fromPosition) {
  * @param {number[]} toPosition - Posição de destino do peão que realizou o en passant [linha, coluna].
  */
 function removePawnEnPassant(toPosition) {
+    const currentPlayer = GameState.get('currentPlayer');
+    const direction = currentPlayer === 'white' ? -1 : 1;
     const lastPawnDoubleMove = GameState.get('lastPawnDoubleMove');
-    const enPassantPosition = GameState.get('enPassantPosition');
 
     if (!lastPawnDoubleMove) return;
 
     const [toRow, toCol] = toPosition;
-    const [emPassantRow, emPassantCol] = enPassantPosition;
-    const existPawnEnPassant = lastPawnDoubleMove;
+    const capturedRow = toRow - direction; 
+    const capturedCol = toCol;
 
-    if (existPawnEnPassant && toRow === emPassantRow && toCol === emPassantCol) {
-        const emPassantCellSelector = `[data-position="${existPawnEnPassant.positions.join(",")}"]`;
-        const emPassantCell = document.querySelector(emPassantCellSelector);
-        const emPassantImg = emPassantCell?.querySelector('img');
+    // Verifica se o peão capturado é realmente o que se moveu duas casas
+    if (
+        lastPawnDoubleMove.positions
+            .some(([r, c]) => r === capturedRow && c === capturedCol)
+    ) {
+        // Remove do DOM
+        const capturedCellSelector = `[data-position="${capturedRow},${capturedCol}"]`;
+        const capturedCell = document.querySelector(capturedCellSelector);
 
-        if (emPassantImg) {
-            emPassantImg.remove();
-        }
+        const capturedImg = capturedCell?.querySelector('img');
+        if (capturedImg) capturedImg.remove();
+
+        // Remove do tabuleiro virtual
+        VIRTUAL_BOARD[capturedRow][capturedCol] = null;
+
+        // Limpa o estado do en passant
+        GameState.set({
+            lastPawnDoubleMove: null,
+            enPassantPosition: []
+        });
     }
 };
 
@@ -878,9 +893,6 @@ function setLastPawnDoubleMove(fromPosition, toPosition, piece) {
             }
         });
         GameState.set({ enPassantPosition: [toRow, toCol] });
-    } else {
-        // Se não for duplo, limpa o último movimento duplo
-        GameState.set({ lastPawnDoubleMove: null });
     }
 };
 
@@ -1065,7 +1077,6 @@ function getKingMove(position) {
  * @returns {boolean} Retorna true se o roque for permitido, false caso contrário.
  */
 function canCastle(fromPosition, toPosition, color) {
-    // Atualiza matriz de ataque
     updateAttackBoardPosition();
 
     const [fromRow, fromCol] = fromPosition;
@@ -1084,15 +1095,16 @@ function canCastle(fromPosition, toPosition, color) {
     // Verifica se há peças entre rei e torre
     const intermediateCols = isKingside ? [fromCol + 1, fromCol + 2] : [fromCol - 3, fromCol - 2, fromCol - 1];
     const pathClear = intermediateCols.every(col => !VIRTUAL_BOARD[row][col]);
+
     if (!pathClear) return false;
 
-    // Rei não pode estar em xeque
     if (isKingInCheck(color)) return false;
 
     // Casas que o rei atravessará não podem estar atacadas
     const kingPathCols = isKingside ? [fromCol, fromCol + 1, fromCol + 2] : [fromCol, fromCol - 1, fromCol - 2];
     const opponentColor = color === "white" ? "black" : "white";
     const safePath = kingPathCols.every(col => !ATTACK_BOARD[row][col].has(opponentColor));
+    
     if (!safePath) return false;
 
     return true;
