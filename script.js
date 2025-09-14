@@ -323,7 +323,6 @@ function cellClicked(event, position) {
 
     // --- Nenhuma peça clicada e nenhuma selecionada ---
     if (!clickedPiece && !selectedPiece) {
-        openModal(`ℹ️ Nenhuma peça encontrada na posição clicada: ${position}`);
         return;
     }
 
@@ -341,7 +340,7 @@ function cellClicked(event, position) {
         const toPosition = position;
 
         // --- Movimento normal ---
-        validateAndExecuteMove(fromPosition, toPosition);
+        validateMove(fromPosition, toPosition);
     }
 };
 
@@ -360,7 +359,7 @@ function cellClicked(event, position) {
  * 
  * @returns {void}
  */
-function validateAndExecuteMove(fromPosition, toPosition) {
+function validateMove(fromPosition, toPosition) {
     const piece = getPiecePositionOnVirtualBoard(fromPosition);
     const currentPlayer = GameState.get("currentPlayer");
 
