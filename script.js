@@ -104,11 +104,10 @@ function initializeAttackBoard() {
  */
 function createBoard() {
     const board = document.getElementById("board");
-    const letters = "abcdefgh".split("");
-
+    
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
-            const cell = createCell(row, col, letters);
+            const cell = createCell(row, col);
             board.appendChild(cell);
         }
     }
@@ -126,8 +125,9 @@ function createBoard() {
  * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
  * @returns {HTMLDivElement} Célula do tabuleiro criada.
 */
-function createCell(row, col, letters) {
+function createCell(row, col) {
     const cell = document.createElement("div");
+    const letters = "abcdefgh".split("");
     const { bg, text } = getBoardCellColors(row, col);
 
     cell.classList.add(
