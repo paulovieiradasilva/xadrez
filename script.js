@@ -1178,27 +1178,7 @@ function isKingInCheck(color) {
  * @return {boolean} - Retorna `true` se o jogador estiver em xeque-mate, `false` caso contrário.
  */
 function isCheckmate(color) {
-    if (!isKingInCheck(color)) return false;
-
-    const kingPosition = GameState.get("kingPositions")[color];
-    const kingMoves = getKingMove(kingPosition);
-
-    // Verifica se o rei tem movimentos seguros
-    const hasSafeMoves = kingMoves.some(move => isMoveSafe(kingPosition, move, color));
-    if (hasSafeMoves) return false;
-
-    // Verifica se alguma peça pode bloquear o xeque
-    const pieces = PIECES[color];
-    for (let piece of pieces) {
-        const possibleMoves = getPossibleMoves(piece.positions[0], piece);
-        for (let move of possibleMoves) {
-            if (isMoveSafe(piece.positions[0], move, color)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    // TODO ~ Implementar xeque-mate
 };
 
 /**
@@ -1208,19 +1188,7 @@ function isCheckmate(color) {
  * @return {boolean} - Retorna `true` se for stalemate, `false` caso contrário.
  */
 function isStalemate(color) {
-    if (isKingInCheck(color)) return false;
-
-    const pieces = PIECES[color];
-    for (let piece of pieces) {
-        const possibleMoves = getPossibleMoves(piece.positions[0], piece);
-        for (let move of possibleMoves) {
-            if (isMoveSafe(piece.positions[0], move, color)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    // TODO ~ Implementar empate por afogamento
 };
 
 /**
@@ -1345,17 +1313,6 @@ function replacePieceAtPosition(position, newPieceTemplate, color) {
 };
 
 /**
- * Verifica se a peça em uma posição específica é da cor informada.
- * @param {number[]} position - Posição no tabuleiro [row, col].
- * @param {string} color - Cor a ser verificada ('white' ou 'black').
- * @return {boolean} - Retorna true se houver uma peça da cor especificada na posição.
- */
-function isPieceOfColor(position, color) {
-    const piece = getPiecePositionOnVirtualBoard(position);
-    return piece ? piece.color === color : false;
-};
-
-/**
  * Retorna as classes CSS de cor para uma célula do tabuleiro.
  * - Define a cor de fundo (`bg`) da célula.
  * - Define a cor de contraste (`text`) para letras e números.
@@ -1448,7 +1405,7 @@ function promptPawnPromotion(fromPosition, toPosition) {
         });
 
     openModal(`
-        <h3>❗ Escolha a peça para promover | ♕♖♗♘</h3>
+        <h3>Escolha a peça para promover | ♕♖♗♘</h3>
         <div class="flex gap-2 justify-center items-center">
             ${symbolsHtml}
         </div>
