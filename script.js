@@ -114,33 +114,38 @@ function createBoard() {
 };
 
 /**
- * Cria uma célula do tabuleiro de xadrez no DOM.
- * - Define a cor de fundo e contraste com `getBoardCellColors`.
+ * Cria uma célula do tabuleiro (div) com estilos e posição.
+ * - Adiciona classes CSS para estilo e posição.
  * - Adiciona identificadores como [row,col] e notação de xadrez (a1..h8).
  * - Inclui rótulos de letras (a–h) e números (1–8) nas bordas.
  * - Conecta cada célula ao evento `cellClicked`.
  * 
  * @param {number} row - Linha da célula (0–7).
  * @param {number} col - Coluna da célula (0–7).
- * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
  * @returns {HTMLDivElement} Célula do tabuleiro criada.
-*/
+ */
 function createCell(row, col) {
-    const cell = document.createElement("div");
-    const letters = "abcdefgh".split("");
     const { bg, text } = getBoardCellColors(row, col);
+    const letters = "abcdefgh".split("");
 
+    const cell = document.createElement("div");
     cell.classList.add(
         "relative", "w-full", "h-full", "flex", "flex-col",
         "justify-center", "items-center", "cell", bg, text
     );
     cell.dataset.position = [row, col];
-    cell.dataset.id = `${letters[col]}${8 - row}`;
+    cell.dataset.id = letters[col] + (8 - row);
 
-    showCellCoordinates(cell, row, col, text);
-    addLettersToCell(cell, row, col, letters, text);
-    addNumberToCell(cell, row, col, text);
+    // --- Append centralizado ---
+    [
+        createCoordElement(row, col, text),
+        createLetterElement(row, col, letters, text),
+        createNumberElement(row, col, text)
+    ]
+    .filter(Boolean) // remove nulls
+    .forEach(el => cell.appendChild(el));
 
+    // Clique
     cell.addEventListener("click", (e) => {
         e.stopPropagation();
         cellClicked(e, [row, col]);
@@ -150,89 +155,65 @@ function createCell(row, col) {
 };
 
 /**
- * Exibe as coordenadas (linha, coluna) da célula no canto superior esquerdo.
- * - Cria um elemento <span> com o texto em formato [linha, coluna]
+ * Cria um elemento <span> com o texto em formato [linha, coluna]
+ * que representa a posição da célula no tabuleiro.
  * - Adiciona classes CSS para posicionar o elemento no canto superior esquerdo e definir o tamanho da fonte.
  * - Adiciona o elemento à célula.
  * 
- * @param {HTMLDivElement} cell - Célula do tabuleiro.
  * @param {number} row - Linha da célula (0–7).
  * @param {number} col - Coluna da célula (0–7).
- * @param {string} text - Classe CSS para definir a cor do texto.
- * @returns {void}
+ * @param {string} extraClass - Classe CSS adicional para o elemento <span>.
+ * 
+ * @returns {HTMLSpanElement} Elemento <span> criado.
  */
-function showCellCoordinates(cell, row, col, text) {
-    const coord = document.createElement("span");
-    coord.textContent = `[${row}, ${col}]`;
-    coord.classList.add(
-        "absolute",
-        "top-1",
-        "text-[0.4rem]",
-        "sm:text-[0.6rem]",
-        text
-    );
-    cell.appendChild(coord);
+function createCoordElement(row, col, extraClass) {
+    const span = document.createElement("span");
+    span.textContent = `[${row}, ${col}]`;
+    span.classList.add("absolute", "top-1", "text-[0.4rem]", "sm:text-[0.6rem]", extraClass);
+    return span;
 };
 
 /**
- * Adiciona uma letra à célula do tabuleiro (canto inferior direito)
- * - Cria um elemento <span> com o texto em formato [letra]
+ * Cria um elemento <span> com o texto em formato [letra] que representa
+ * a coluna da célula no tabuleiro.
  * - Adiciona classes CSS para posicionar o elemento no canto inferior direito e definir o tamanho da fonte.
  * - Adiciona o elemento à célula.
- * - Apenas adiciona a letra se a célula estiver na linha 7 (linha de baixo do tabuleiro).
+ * - Retorna null se a linha for diferente de 7.
  * 
- * @param {HTMLDivElement} cell - Célula do tabuleiro.
  * @param {number} row - Linha da célula (0–7).
  * @param {number} col - Coluna da célula (0–7).
- * @param {string[]} letters - Array de 8 strings representando as letras (a–h) nas bordas.
+ * @param {string[]} letters - Array com as letras do alfabeto (a–h).
  * @param {string} extraClass - Classe CSS adicional para o elemento <span>.
  * 
- * @returns {void}
+ * @returns {HTMLSpanElement | null} Elemento <span> criado ou null se a linha for diferente de 7.
  */
-function addLettersToCell(cell, row, col, letters, extraClass) {
-    if (row === 7) {
-        const letter = document.createElement("span");
-        letter.textContent = letters[col];
-        letter.classList.add(
-            "absolute",
-            "text-[0.5rem]",
-            "sm:text-[0.9rem]",
-            "right-1",
-            "bottom-1",
-            extraClass
-        );
-        cell.appendChild(letter);
-    }
+function createLetterElement(row, col, letters, extraClass) {
+    if (row !== 7) return null;
+    const span = document.createElement("span");
+    span.textContent = letters[col];
+    span.classList.add("absolute", "text-[0.5rem]", "sm:text-[0.9rem]", "right-1", "bottom-1", extraClass);
+    return span;
 };
 
 /**
- * Adiciona um número à célula do tabuleiro (canto esquerdo superior esquerdo)
- * - Cria um elemento <span> com o texto em formato [número]
- * - Adiciona classes CSS para posicionar o elemento no canto esquerdo superior esquerdo e definir o tamanho da fonte.
+ * Cria um elemento <span> com o texto em formato [número] que representa
+ * a linha da célula no tabuleiro.
+ * - Adiciona classes CSS para posicionar o elemento no canto superior esquerdo e definir o tamanho da fonte.
  * - Adiciona o elemento à célula.
- * - Apenas adiciona o número se a célula estiver na coluna 0 (canto esquerdo do tabuleiro).
+ * - Retorna null se a coluna for diferente de 0.
  * 
- * @param {HTMLDivElement} cell - Célula do tabuleiro.
  * @param {number} row - Linha da célula (0–7).
  * @param {number} col - Coluna da célula (0–7).
  * @param {string} extraClass - Classe CSS adicional para o elemento <span>.
  * 
- * @returns {void}
+ * @returns {HTMLSpanElement | null} Elemento <span> criado ou null se a coluna for diferente de 0.
  */
-function addNumberToCell(cell, row, col, extraClass) {
-    if (col === 0) {
-        const number = document.createElement("span");
-        number.textContent = 8 - row;
-        number.classList.add(
-            "absolute",
-            "text-[0.5rem]",
-            "sm:text-[0.7rem]",
-            "left-1",
-            "top-1",
-            extraClass
-        );
-        cell.appendChild(number);
-    }
+function createNumberElement(row, col, extraClass) {
+    if (col !== 0) return null;
+    const span = document.createElement("span");
+    span.textContent = 8 - row;
+    span.classList.add("absolute", "text-[0.5rem]", "sm:text-[0.7rem]", "left-1", "top-1", extraClass);
+    return span;
 };
 
 // ----------------- PEÇAS
