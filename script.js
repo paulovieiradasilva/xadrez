@@ -16,7 +16,6 @@ let VIRTUAL_BOARD = initializeVirtualBoard();
  * Estrutura: matriz 8x8 de Sets, onde cada célula indica
  * quais cores atacam aquela posição (ex: {"white"}, {"black"}, ou {"white","black"}).
  * 
- * É recalculada chamando `updateAttackBoardPosition()` após cada jogada.
  */
 let ATTACK_BOARD = initializeAttackBoard();
 
@@ -441,7 +440,7 @@ function executeMove(fromPosition, toPosition, piece) {
     setKingPosition(piece, toPosition);
 
     // 5. Atualiza tabuleiro de ataque
-    updateAttackBoardPosition();
+    // TODO ~ Implementar tabuleiro de ataque
 
     // 6. Verifica se o rei de oponente ficou em xeque
     if (isKingInCheck(opponentColor)) {
@@ -700,9 +699,6 @@ function isMoveSafe(fromPosition, toPosition, color) {
         newKingPositions[color] = [toRow, toCol];
         GameState.set({ kingPositions: newKingPositions });
     }
-
-    // Atualiza a matriz de ataque para a nova configuração do tabuleiro
-    updateAttackBoardPosition();
 
     // Verifica se o próprio rei está em xeque
     const kingIsInCheck = isKingInCheck(color);
@@ -1052,8 +1048,6 @@ function getKingMove(position) {
  * @returns {boolean} Retorna true se o roque for permitido, false caso contrário.
  */
 function canCastle(fromPosition, toPosition, color) {
-    updateAttackBoardPosition();
-
     const [fromRow, fromCol] = fromPosition;
     const row = color === "white" ? 7 : 0;
 
@@ -1440,32 +1434,6 @@ function updateVirutualBoardPosition(fromPosition, toPosition, piece) {
     VIRTUAL_BOARD[fromRow][fromCol] = null;
     VIRTUAL_BOARD[toRow][toCol] = piece;
     piece.positions = [[toRow, toCol]];
-};
-
-/**
- * Atualiza o tabuleiro virtual de ataques (ATTACK_BOARD) a partir do estado atual das peças no tabuleiro.
- * Cada célula do ATTACK_BOARD contém um Set com as cores que atacam essa posição.
- * @return {void}
- * 
- */
-function updateAttackBoardPosition() {
-    ATTACK_BOARD = initializeAttackBoard();
-
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const piece = VIRTUAL_BOARD[r][c];
-            if (!piece) continue;
-
-            const attacks = getAttackingMoves([r, c], piece);
-            attacks.forEach(([ar, ac]) => {
-                ATTACK_BOARD[ar][ac].add(piece.color);
-                // Debug opcional:
-                // console.log(
-                //     `Peça ${piece.type} (${piece.color}) ataca [${ar}, ${ac}]`
-                // );
-            });
-        }
-    }
 };
 
 /**
