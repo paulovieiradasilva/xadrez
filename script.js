@@ -245,14 +245,14 @@ function addNumberToCell(cell, row, col, extraClass) {
  * @returns {Object[]} Lista de peças com {name, type, symbol, color, positions, pathImg}.
  *
  */
-function createPiecesWithFEN(positionsFEN) {
+function createPiecesWithFEN(positionsFEN, pieceTypes) {
     const typeMap = {
-        p: PIECE_TYPES.PAWN,
-        r: PIECE_TYPES.ROOK,
-        n: PIECE_TYPES.KNIGHT,
-        b: PIECE_TYPES.BISHOP,
-        q: PIECE_TYPES.QUEEN,
-        k: PIECE_TYPES.KING
+        p: pieceTypes.PAWN,
+        r: pieceTypes.ROOK,
+        n: pieceTypes.KNIGHT,
+        b: pieceTypes.BISHOP,
+        q: pieceTypes.QUEEN,
+        k: pieceTypes.KING
     };
 
     const pieces = [];
@@ -287,7 +287,7 @@ function createPiecesWithFEN(positionsFEN) {
  * @return {void}
  */
 function addPieces() {
-    let pieces = createPiecesWithFEN(INITIAL_POSITIONS);
+    let pieces = createPiecesWithFEN(INITIAL_POSITIONS, PIECE_TYPES);
 
     if (!pieces.length) return;
 
