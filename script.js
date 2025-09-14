@@ -27,7 +27,7 @@ let ATTACK_BOARD = initializeAttackBoard();
  * - Minúsculas = peças pretas
  * - "." = casa vazia
  */
-const INITIAL_POSITIONS_ = [
+const INITIAL_POSITIONS = [
     "rnbqkbnr", // linha 0 (pretas)
     "pppppppp", // linha 1
     "........", // linha 2
@@ -36,17 +36,6 @@ const INITIAL_POSITIONS_ = [
     "........", // linha 5
     "PPPPPPPP", // linha 6
     "RNBQKBNR"  // linha 7 (brancas)
-];
-
-const INITIAL_POSITIONS = [
-    "rnbqkbQR", // linha 0: r n b q k Q . R
-    "...ppp..", // linha 1: . . . p p p . .
-    "........", // linha 2: todas vazias
-    "..p.....", // linha 3: . . p . . . . .
-    "........", // linha 4: todas vazias
-    "pp......", // linha 5: p p . . . . . .
-    "pppppp..", // linha 6: p p p p p p . .
-    "RNBQKB.N"  // linha 7: R N B Q K B . N
 ];
 
 /**
@@ -78,7 +67,7 @@ let SHOW_HIGHLIGHT = true;
  */
 function startGame() {
     createBoard();
-    addPieces(INITIAL_POSITIONS);
+    addPieces();
     updateTurnInUI();
 };
 
@@ -297,7 +286,7 @@ function createPiecesWithFEN(positionsFEN) {
  *
  * @return {void}
  */
-function addPieces(INITIAL_POSITIONS) {
+function addPieces() {
     let pieces = createPiecesWithFEN(INITIAL_POSITIONS);
 
     if (!pieces.length) return;
