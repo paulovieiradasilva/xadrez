@@ -721,18 +721,6 @@ function isMoveSafe(fromPosition, toPosition, color) {
     return !kingIsInCheck;
 };
 
-/**
- * Move a peça no DOM de uma posição para outra, baseada nas posições do tabuleiro virtual.
- *
- * @param {number[]} fromPos - Posição inicial [linha, coluna].
- * @param {number[]} toPos - Posição de destino [linha, coluna].
- */
-function movePieceInDOMByPosition(fromPos, toPos) {
-    const fromCell = document.querySelector(`[data-position="${fromPos.join(",")}"]`);
-    const toCell = document.querySelector(`[data-position="${toPos.join(",")}"]`);
-    movePieceElement(fromCell, toCell);
-};
-
 // ----------------- FUNÇÕES DE MOVIMENTO
 /**
  * Retorna os movimentos válidos de um peão a partir de sua posição atual.
@@ -1105,28 +1093,40 @@ function canCastle(fromPosition, toPosition, color) {
  * @param {"white"|"black"} color - Cor do rei.
  */
 function executeCastle(fromPosition, toPosition, color) {
-    const [fromRow, fromCol] = fromPosition;
-    const row = fromRow; // usa a linha real do rei clicado
+    const [row, fromCol] = fromPosition;
     const isKingside = toPosition[1] === 6;
+
+    // Colunas da torre
     const rookColFrom = isKingside ? 7 : 0;
     const rookColTo = isKingside ? 5 : 3;
 
+    // Peças do tabuleiro virtual
     const kingPiece = getPiecePositionOnVirtualBoard(fromPosition);
     const rookPiece = VIRTUAL_BOARD[row][rookColFrom];
 
-    // Atualiza tabuleiro virtual
-    updateVirutualBoardPosition(fromPosition, toPosition, kingPiece);
-    updateVirutualBoardPosition([row, rookColFrom], [row, rookColTo], rookPiece);
+    // --- Atualiza tabuleiro virtual ---
+    updateVirtualBoardPosition(fromPosition, toPosition, kingPiece);           // rei
+    updateVirtualBoardPosition([row, rookColFrom], [row, rookColTo], rookPiece); // torre
 
-    // Atualiza DOM
-    movePieceInDOMByPosition(fromPosition, toPosition);
-    movePieceInDOMByPosition([row, rookColFrom], [row, rookColTo]);
+    // --- Função utilitária para pegar célula DOM ---
+    const getCellByPosition = pos => document.querySelector(`[data-position="${pos.join(",")}"]`);
 
-    // Atualiza posição do rei
+    // --- Atualiza DOM: rei e torre ---
+    [
+        { from: fromPosition, to: toPosition },
+        { from: [row, rookColFrom], to: [row, rookColTo] }
+    ].forEach(({ from, to }) => {
+        const fromCell = getCellByPosition(from);
+        const toCell = getCellByPosition(to);
+        if (fromCell && toCell) movePieceElement(fromCell, toCell);
+    });
+
+    // --- Atualiza posição do rei no GameState ---
     const newKingPositions = { ...GameState.get("kingPositions") };
     newKingPositions[color] = [row, toPosition[1]];
     GameState.set({ kingPositions: newKingPositions });
 
+    // --- UI e controle de jogo ---
     clearSelectedPiece();
     clearMoveHighlights();
     toggleCurrentPlayer();
