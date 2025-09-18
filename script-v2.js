@@ -46,18 +46,23 @@ const INITIAL_POSITIONS = [
  * - value: Pontuação da peça
  */
 const PIECE_TYPES = {
-    PAWN:   { name: "Peão",   type: "pawn",   symbol: "♟", img: "p.png", value: 1 },
-    ROOK:   { name: "Torre",  type: "rook",   symbol: "♜", img: "r.png", value: 5 },
+    PAWN: { name: "Peão", type: "pawn", symbol: "♟", img: "p.png", value: 1 },
+    ROOK: { name: "Torre", type: "rook", symbol: "♜", img: "r.png", value: 5 },
     KNIGHT: { name: "Cavalo", type: "knight", symbol: "♞", img: "n.png", value: 3 },
-    BISHOP: { name: "Bispo",  type: "bishop", symbol: "♝", img: "b.png", value: 3 },
-    QUEEN:  { name: "Rainha", type: "queen",  symbol: "♕", img: "q.png", value: 9 },
-    KING:   { name: "Rei",    type: "king",   symbol: "♚", img: "k.png", value: 1000 }
+    BISHOP: { name: "Bispo", type: "bishop", symbol: "♝", img: "b.png", value: 3 },
+    QUEEN: { name: "Rainha", type: "queen", symbol: "♕", img: "q.png", value: 9 },
+    KING: { name: "Rei", type: "king", symbol: "♚", img: "k.png", value: 1000 }
 };
 
 /**
  * Define se as casas devem ser destacadas ou não.
  */
 let SHOW_HIGHLIGHT = true;
+
+/**
+ * Define se a IA está ativada ou não.
+ */
+let ENABLE_AI = true;
 
 // ----------------- INICIALIZAÇÃO
 /**
@@ -104,7 +109,7 @@ function initializeAttackBoard() {
  */
 function createBoard() {
     const board = document.getElementById("board");
-    
+
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const cell = createCell(row, col);
@@ -142,8 +147,8 @@ function createCell(row, col) {
         createLetterElement(row, col, letters, text),
         createNumberElement(row, col, text)
     ]
-    .filter(Boolean) // remove nulls
-    .forEach(el => cell.appendChild(el));
+        .filter(Boolean) // remove nulls
+        .forEach(el => cell.appendChild(el));
 
     // Clique
     cell.addEventListener("click", (e) => {
@@ -380,7 +385,7 @@ function validateMove(fromPosition, toPosition) {
 };
 
 function executeMove(fromPosition, toPosition, piece) {
-    const fromCell = document.querySelector(`[data-position="${fromPosition.join(",")}`); 
+    const fromCell = document.querySelector(`[data-position="${fromPosition.join(",")}`);
     const toCell = document.querySelector(`[data-position="${toPosition.join(",")}"]`);
 
     if (!fromCell || !toCell) return;
@@ -1586,20 +1591,20 @@ window.addEventListener('keydown', (e) => {
  * @return {number} Score total do tabuleiro.
  */
 function evaluateBoard() {
-  let score = 0;
+    let score = 0;
 
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = VIRTUAL_BOARD[r][c];
-      if (!piece) continue;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = VIRTUAL_BOARD[r][c];
+            if (!piece) continue;
 
-      const value = piece.value || 0;
-      // brancas somam, pretas subtraem
-      score += (piece.color === "white" ? value : -value);
+            const value = piece.value || 0;
+            // brancas somam, pretas subtraem
+            score += (piece.color === "white" ? value : -value);
+        }
     }
-  }
 
-  return score;
+    return score;
 };
 
 /**
@@ -1620,47 +1625,47 @@ function evaluateBoard() {
  * 
  */
 function minimax(depth, isMaximizing, alpha, beta) {
-  if (depth === 0) {
-    return evaluateBoard();
-  }
-
-  const color = isMaximizing ? "white" : "black";
-  let bestScore = isMaximizing ? -Infinity : Infinity;
-
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = VIRTUAL_BOARD[r][c];
-      if (!piece || piece.color !== color) continue;
-
-      const moves = getPossibleMoves([r, c], piece);
-      for (let move of moves) {
-        if (!isMoveSafe([r, c], move, color)) continue;
-
-        // --- simula movimento
-        const captured = VIRTUAL_BOARD[move[0]][move[1]];
-        VIRTUAL_BOARD[r][c] = null;
-        VIRTUAL_BOARD[move[0]][move[1]] = piece;
-
-        const score = minimax(depth - 1, !isMaximizing, alpha, beta);
-
-        // --- desfaz movimento
-        VIRTUAL_BOARD[r][c] = piece;
-        VIRTUAL_BOARD[move[0]][move[1]] = captured;
-
-        if (isMaximizing) {
-          bestScore = Math.max(bestScore, score);
-          alpha = Math.max(alpha, bestScore);
-        } else {
-          bestScore = Math.min(bestScore, score);
-          beta = Math.min(beta, bestScore);
-        }
-
-        if (beta <= alpha) return bestScore; // poda
-      }
+    if (depth === 0) {
+        return evaluateBoard();
     }
-  }
 
-  return bestScore;
+    const color = isMaximizing ? "white" : "black";
+    let bestScore = isMaximizing ? -Infinity : Infinity;
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = VIRTUAL_BOARD[r][c];
+            if (!piece || piece.color !== color) continue;
+
+            const moves = getPossibleMoves([r, c], piece);
+            for (let move of moves) {
+                if (!isMoveSafe([r, c], move, color)) continue;
+
+                // --- simula movimento
+                const captured = VIRTUAL_BOARD[move[0]][move[1]];
+                VIRTUAL_BOARD[r][c] = null;
+                VIRTUAL_BOARD[move[0]][move[1]] = piece;
+
+                const score = minimax(depth - 1, !isMaximizing, alpha, beta);
+
+                // --- desfaz movimento
+                VIRTUAL_BOARD[r][c] = piece;
+                VIRTUAL_BOARD[move[0]][move[1]] = captured;
+
+                if (isMaximizing) {
+                    bestScore = Math.max(bestScore, score);
+                    alpha = Math.max(alpha, bestScore);
+                } else {
+                    bestScore = Math.min(bestScore, score);
+                    beta = Math.min(beta, bestScore);
+                }
+
+                if (beta <= alpha) return bestScore; // poda
+            }
+        }
+    }
+
+    return bestScore;
 };
 
 /**
@@ -1675,38 +1680,38 @@ function minimax(depth, isMaximizing, alpha, beta) {
  * "to" e "piece".
  */
 function getBestMove(depth = 2) {
-  let bestMove = null;
-  let bestScore = Infinity; // pretas querem minimizar
+    let bestMove = null;
+    let bestScore = Infinity; // pretas querem minimizar
 
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = VIRTUAL_BOARD[r][c];
-      if (!piece || piece.color !== "black") continue;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = VIRTUAL_BOARD[r][c];
+            if (!piece || piece.color !== "black") continue;
 
-      const moves = getPossibleMoves([r, c], piece);
-      for (let move of moves) {
-        if (!isMoveSafe([r, c], move, "black")) continue;
+            const moves = getPossibleMoves([r, c], piece);
+            for (let move of moves) {
+                if (!isMoveSafe([r, c], move, "black")) continue;
 
-        // --- simula
-        const captured = VIRTUAL_BOARD[move[0]][move[1]];
-        VIRTUAL_BOARD[r][c] = null;
-        VIRTUAL_BOARD[move[0]][move[1]] = piece;
+                // --- simula
+                const captured = VIRTUAL_BOARD[move[0]][move[1]];
+                VIRTUAL_BOARD[r][c] = null;
+                VIRTUAL_BOARD[move[0]][move[1]] = piece;
 
-        const score = minimax(depth - 1, true, -Infinity, Infinity);
+                const score = minimax(depth - 1, true, -Infinity, Infinity);
 
-        // --- desfaz
-        VIRTUAL_BOARD[r][c] = piece;
-        VIRTUAL_BOARD[move[0]][move[1]] = captured;
+                // --- desfaz
+                VIRTUAL_BOARD[r][c] = piece;
+                VIRTUAL_BOARD[move[0]][move[1]] = captured;
 
-        if (score < bestScore) {
-          bestScore = score;
-          bestMove = { from: [r, c], to: move, piece };
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestMove = { from: [r, c], to: move, piece };
+                }
+            }
         }
-      }
     }
-  }
 
-  return bestMove;
+    return bestMove;
 };
 
 // ------------------ TURNOS
@@ -1721,7 +1726,7 @@ function toggleCurrentPlayer() {
     GameState.set({ currentPlayer: nextPlayer });
     updateTurnInUI();
 
-    if (nextPlayer === "black") {
+    if (ENABLE_AI && nextPlayer === "black") {
         setTimeout(() => {
             const move = getBestMove(5);
             if (move) {
@@ -1734,6 +1739,7 @@ function toggleCurrentPlayer() {
 
 // ------------------ TIMES
 
+// ------------------ CONFIGURAÇÃO DE IA (cole perto do GameState)
 
 // ------------------ GAME STATE
 /**
