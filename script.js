@@ -384,8 +384,13 @@ function executeMove(fromPosition, toPosition, piece) {
 
     // 1. Move a peça no DOM
     movePieceElement(fromCell, toCell);
+
+    // 1.1 Captura peças adversárias
+    captureOpponentPiecesIfExists(toPosition);
+
     // 2. Move a peça no tabuleiro virtual
     updateVirutualBoardPosition(fromPosition, toPosition, piece);
+
     // 3. UI e controle de jogo
     clearMoveHighlights();
     clearSelectedPiece();
@@ -428,15 +433,26 @@ function movePieceElement(fromCell, toCell) {
     toCell.appendChild(pieceImg);
 };
 
+
 /**
- * Remove a peça adversária da célula de destino, se houver.
+ * Captura peças adversárias na posição de destino, se houver.
+ * - Verifica se a peça na posição de destino é adversária.
+ * - Se sim, remove a peça do tabuleiro virtual e do DOM.
  *
- * @param {HTMLElement} toCell - Célula de destino que pode conter uma peça adversária.
- * @returns {void}
+ * @param {number[]} toPosition - Posição de destino [linha, coluna].
  */
-function captureOpponentPiecesIfExists(toCell) {
-    const targetImg = toCell.querySelector('img');
-    if (targetImg) targetImg.remove();
+function captureOpponentPiecesIfExists(toPosition) {
+    const [toRow, toCol] = toPosition;
+    const targetPiece = VIRTUAL_BOARD[toRow][toCol];
+
+    if (targetPiece && targetPiece.color !== GameState.get("currentPlayer")) {
+        VIRTUAL_BOARD[toRow][toCol] = null;
+
+        // Remover do DOM
+        const toCell = document.querySelector(`[data-position="${toPosition.join(",")}"]`);
+        const targetPieceImg = toCell.querySelector("img");
+        if (targetPieceImg) targetPieceImg.remove();
+    };
 };
 
 /**
