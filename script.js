@@ -43,14 +43,15 @@ const INITIAL_POSITIONS = [
  * - type: Identificador interno
  * - symbol: Unicode do xadrez
  * - img: Arquivo de imagem
+ * - value: Pontuação da peça
  */
 const PIECE_TYPES = {
-    PAWN: { name: "Peão", type: "pawn", symbol: "♟", img: "p.png" },
-    ROOK: { name: "Torre", type: "rook", symbol: "♜", img: "r.png" },
-    KNIGHT: { name: "Cavalo", type: "knight", symbol: "♞", img: "n.png" },
-    BISHOP: { name: "Bispo", type: "bishop", symbol: "♝", img: "b.png" },
-    QUEEN: { name: "Rainha", type: "queen", symbol: "♕", img: "q.png" },
-    KING: { name: "Rei", type: "king", symbol: "♚", img: "k.png" }
+    PAWN:   { name: "Peão",   type: "pawn",   symbol: "♟", img: "p.png", value: 1 },
+    ROOK:   { name: "Torre",  type: "rook",   symbol: "♜", img: "r.png", value: 5 },
+    KNIGHT: { name: "Cavalo", type: "knight", symbol: "♞", img: "n.png", value: 3 },
+    BISHOP: { name: "Bispo",  type: "bishop", symbol: "♝", img: "b.png", value: 3 },
+    QUEEN:  { name: "Rainha", type: "queen",  symbol: "♕", img: "q.png", value: 9 },
+    KING:   { name: "Rei",    type: "king",   symbol: "♚", img: "k.png", value: 1000 }
 };
 
 /**
@@ -1228,6 +1229,8 @@ function isRookInInitialPosition(color, side) {
 
     if (INITIAL_POSITIONS[row][col] !== expectedChar) return false;
 
+    if (!piece) return false;
+
     return piece.type === "rook" && piece.color === color;
 };
 
@@ -1461,6 +1464,138 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
 });
 
+// _________________ MINIMAX
+
+/**
+ * Avalia o estado atual do tabuleiro virtual de posições.
+ * - As peças brancas somam seu valor.
+ * - As peças pretas subtraem seu valor.
+ * - Retorna o score total (inteiro) do tabuleiro.
+ * @return {number} Score total do tabuleiro.
+ */
+function evaluateBoard() {
+  let score = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = VIRTUAL_BOARD[r][c];
+      if (!piece) continue;
+
+      const value = piece.value || 0;
+      // brancas somam, pretas subtraem
+      score += (piece.color === "white" ? value : -value);
+    }
+  }
+
+  return score;
+};
+
+/**
+ * Função de minimax para avaliar o melhor movimento para
+ * cada jogadorada.
+ *
+ * A função minimax é uma implementação do algoritmo de
+ * minimax, que é uma variação do algoritmo de busca em
+ * árvore. Ela é utilizada para encontrar o melhor movimento
+ * para cada jogada, considerando todas as possibilidades
+ * de movimento.
+ *
+ * @param {number} depth - Profundidade da árvore.
+ * @param {boolean} isMaximizing - Se a função deve maximizar o score (brancas) ou minimizar (pretas).
+ * @param {number} alpha - Melhor score atual para as brancas.
+ * @param {number} beta - Pior score atual para as pretas.
+ * @return {number} O melhor score encontrado.
+ */
+function minimax(depth, isMaximizing, alpha, beta) {
+  if (depth === 0) {
+    return evaluateBoard();
+  }
+
+  const color = isMaximizing ? "white" : "black";
+  let bestScore = isMaximizing ? -Infinity : Infinity;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = VIRTUAL_BOARD[r][c];
+      if (!piece || piece.color !== color) continue;
+
+      const moves = getPossibleMoves([r, c], piece);
+      for (let move of moves) {
+        if (!isMoveSafe([r, c], move, color)) continue;
+
+        // --- simula movimento
+        const captured = VIRTUAL_BOARD[move[0]][move[1]];
+        VIRTUAL_BOARD[r][c] = null;
+        VIRTUAL_BOARD[move[0]][move[1]] = piece;
+
+        const score = minimax(depth - 1, !isMaximizing, alpha, beta);
+
+        // --- desfaz movimento
+        VIRTUAL_BOARD[r][c] = piece;
+        VIRTUAL_BOARD[move[0]][move[1]] = captured;
+
+        if (isMaximizing) {
+          bestScore = Math.max(bestScore, score);
+          alpha = Math.max(alpha, bestScore);
+        } else {
+          bestScore = Math.min(bestScore, score);
+          beta = Math.min(beta, bestScore);
+        }
+
+        if (beta <= alpha) return bestScore; // poda
+      }
+    }
+  }
+
+  return bestScore;
+};
+
+/**
+ * Função que retorna o melhor movimento para as pretas, considerando
+ * todas as possibilidades de movimento.
+ *
+ * A função utiliza o algoritmo de minimax para avaliar o melhor
+ * movimento para as pretas.
+ *
+ * @param {number} [depth=2] - Profundidade da árvore.
+ * @return {object} - O melhor movimento encontrado. Contém as chaves "from",
+ * "to" e "piece".
+ */
+function getBestMove(depth = 2) {
+  let bestMove = null;
+  let bestScore = Infinity; // pretas querem minimizar
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = VIRTUAL_BOARD[r][c];
+      if (!piece || piece.color !== "black") continue;
+
+      const moves = getPossibleMoves([r, c], piece);
+      for (let move of moves) {
+        if (!isMoveSafe([r, c], move, "black")) continue;
+
+        // --- simula
+        const captured = VIRTUAL_BOARD[move[0]][move[1]];
+        VIRTUAL_BOARD[r][c] = null;
+        VIRTUAL_BOARD[move[0]][move[1]] = piece;
+
+        const score = minimax(depth - 1, true, -Infinity, Infinity);
+
+        // --- desfaz
+        VIRTUAL_BOARD[r][c] = piece;
+        VIRTUAL_BOARD[move[0]][move[1]] = captured;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestMove = { from: [r, c], to: move, piece };
+        }
+      }
+    }
+  }
+
+  return bestMove;
+};
+
 // ------------------ TURNOS
 /**
  * Alterna o turno do jogador atual entre "white" e "black".
@@ -1469,12 +1604,20 @@ window.addEventListener('keydown', (e) => {
  *
  */
 function toggleCurrentPlayer() {
-    GameState.set({
-        currentPlayer: GameState.get("currentPlayer") === "white"
-            ? "black"
-            : "white"
-    });
+    const nextPlayer = GameState.get("currentPlayer") === "white" ? "black" : "white";
+    GameState.set({ currentPlayer: nextPlayer });
     updateTurnInUI();
+
+    if (nextPlayer === "black") {
+        setTimeout(() => {
+            const move = getBestMove(3);
+            if (move) {
+                console.log("🤖 Pretas jogam:", move.piece.type, move.from, "→", move.to);
+                executeMove(move.from, move.to, move.piece);
+            }
+        }, 1000);
+    };
+
 };
 
 // ------------------ GAME STATE
