@@ -248,7 +248,7 @@ function createPiecesWithFEN(positionsFEN, pieceTypes) {
             pieces.push({
                 ...type,
                 color: isWhite ? "white" : "black",
-                positions: [[r, c]], // compatível com addPieces
+                position: [[r, c]], // compatível com addPieces
                 symbol: type.symbol,
                 pathImg: `./img/pieces/${isWhite ? "white" : "black"}/${type.img}`
             });
@@ -275,7 +275,7 @@ function addPieces() {
     pieces.forEach(piece => {
         const { name, pathImg, type, color, symbol } = piece;
 
-        piece.positions.forEach((position) => {
+        piece.position.forEach((position) => {
             const cell = document.querySelector(`[data-position="${position.join(",")}"]`);
             if (cell) {
                 const img = document.createElement("img");
@@ -329,7 +329,7 @@ function cellClicked(event, position) {
 
     // --- Tentativa de jogada com peça já selecionada ---
     if (selectedPiece) {
-        const fromPosition = selectedPiece.positions[0];
+        const fromPosition = selectedPiece.position[0];
         const toPosition = position;
 
         // --- Movimento ---
@@ -1470,7 +1470,7 @@ function updateVirutualBoardPosition(fromPosition, toPosition, piece) {
     VIRTUAL_BOARD[fromRow][fromCol] = null;
     VIRTUAL_BOARD[toRow][toCol] = piece;
 
-    piece.positions = [[toRow, toCol]];
+    piece.position = [[toRow, toCol]];
 };
 
 /**
