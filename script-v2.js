@@ -1525,22 +1525,44 @@ function calculateAttackBoard(virtualBoard) {
 const modalBackdrop = document.getElementById('modal-backdrop');
 const modal = document.getElementById('modal');
 
+/**
+ * Atualiza o conteúdo do modal de feedback.
+ * 
+ * @param {string} message - A mensagem a ser exibida no modal.
+ */
 const setMessage = (message) => {
     const modalMessage = document.querySelector('.modal-message');
     modalMessage.innerHTML = message;
 };
 
+/**
+ * Abre o modal de feedback com a mensagem fornecida.
+ * 
+ * @param {string} mensagem - A mensagem a ser exibida no modal.
+ */
 const openModal = (mensagem) => {
     modalBackdrop.classList.remove('hidden');
     modal.classList.remove('hidden');
     setMessage(mensagem);
 };
 
+/**
+ * Fecha o modal de feedback.
+ * 
+ * @returns {void}
+ */
 const closeModal = () => {
     modalBackdrop.classList.add('hidden')
     modal.classList.add('hidden');
 };
 
+/**
+ * Atualiza a interface do usuário para refletir o jogador
+ * atual.
+ * 
+ * @returns {void}
+ * 
+ */
 const updateTurnInUI = () => {
     const currentPlayer = GameState.get("currentPlayer");
     const turnoEl = document.getElementById('turno');
@@ -1560,6 +1582,7 @@ window.addEventListener('keydown', (e) => {
  * - As peças brancas somam seu valor.
  * - As peças pretas subtraem seu valor.
  * - Retorna o score total (inteiro) do tabuleiro.
+ * 
  * @return {number} Score total do tabuleiro.
  */
 function evaluateBoard() {
@@ -1594,6 +1617,7 @@ function evaluateBoard() {
  * @param {number} alpha - Melhor score atual para as brancas.
  * @param {number} beta - Pior score atual para as pretas.
  * @return {number} O melhor score encontrado.
+ * 
  */
 function minimax(depth, isMaximizing, alpha, beta) {
   if (depth === 0) {
@@ -1699,15 +1723,17 @@ function toggleCurrentPlayer() {
 
     if (nextPlayer === "black") {
         setTimeout(() => {
-            const move = getBestMove(3);
+            const move = getBestMove(5);
             if (move) {
-                // console.log("🤖 Pretas jogam:", move.piece.type, move.from, "→", move.to);
                 executeMove(move.from, move.to, move.piece);
             }
         }, 1000);
     };
 
 };
+
+// ------------------ TIMES
+
 
 // ------------------ GAME STATE
 /**
